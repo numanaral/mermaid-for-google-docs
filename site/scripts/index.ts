@@ -59,39 +59,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  const pendingModal = document.createElement("div");
-  pendingModal.className = "pending-modal";
-  pendingModal.innerHTML = `
-    <div class="pending-modal-card">
-      <div class="pending-modal-icon">\u23F3</div>
-      <h3>Awaiting Google Verification</h3>
-      <p>Currently undergoing branding verification by Google\u2019s Trust & Safety team.
-         The Marketplace listing will be submitted for review once verification is complete. Install link coming soon!</p>
-      <button class="pending-modal-close">Got it</button>
-    </div>`;
-  document.body.appendChild(pendingModal);
-
-  pendingModal.addEventListener("click", (e: MouseEvent) => {
-    const target = e.target as HTMLElement;
-    if (
-      target === pendingModal ||
-      target.classList.contains("pending-modal-close")
-    ) {
-      pendingModal.classList.remove("visible");
-    }
-  });
-
-  document
-    .querySelectorAll<HTMLElement>(".nav-cta, .btn-accent")
-    .forEach((btn) => {
-      if (btn.getAttribute("href") === "#") {
-        btn.addEventListener("click", (e) => {
-          e.preventDefault();
-          pendingModal.classList.add("visible");
-        });
-      }
-    });
-
   const navLinks = document.querySelectorAll<HTMLAnchorElement>(".nav-links a");
   const path =
     location.pathname.replace(/\/index\.html$/, "/").replace(/\/$/, "") || "/";

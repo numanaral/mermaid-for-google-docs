@@ -1,6 +1,7 @@
 {
   "title": "Mermaid Toolkit for Google Docs™",
   "url": "https://mermaid.numanaral.dev",
+  "marketplaceUrl": "https://workspace.google.com/marketplace/app/mermaid_toolkit_for_google_docs/490705954273",
   "description": "A free & open-source Google Docs™ add-on that renders Mermaid diagrams with markdown support. 100% client-side, no data collection.",
   "author": { "name": "Numan Aral", "url": "https://numanaral.dev" },
   "ga": "G-Y5LVQFDZGM"

@@ -26,19 +26,6 @@
     font-size: 1rem;
   }
 }
-.hero-divider {
-  border: none;
-  width: 60%;
-  max-width: 500px;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--accent-glow),
-    transparent
-  );
-  margin: 2.5rem auto;
-}
 .orb {
   position: absolute;
   border-radius: 50%;
