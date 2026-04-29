@@ -1,27 +1,23 @@
-   
-   
-   
+<p align="center">
+  <img src="site/assets/brand/icon-128.png" alt="Mermaid Toolkit for Google Docs™" width="128" height="128" />
+</p>
 
----
+<h1 align="center">Mermaid Toolkit for Google Docs™</h1>
 
-> **⏳ Awaiting Google Verification:** Currently undergoing branding verification by Google's Trust and Safety team. The Marketplace listing will be submitted for review once verification is complete. Install link coming soon!
+<p align="center">
+  Render Mermaid diagrams as images directly in Google Docs™.<br/>
+  Client-side rendering — no data leaves your browser.
+</p>
 
----
+<p align="center">
+  <a href="https://workspace.google.com/marketplace/app/mermaid_toolkit_for_google_docs/490705954273"><img src="https://img.shields.io/badge/Google%20Workspace-Install%20Add--on-4285F4?logo=google&logoColor=white" alt="Install from Google Workspace Marketplace" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License" /></a>
+</p>
 
-   
-   
-   
+<p align="center">
+  <img src="site/assets/demo/demo.gif" alt="Demo" />
+</p>
 
-
-
-# Mermaid Toolkit for Google Docs™
-
-Render Mermaid diagrams as images directly in Google Docs™.  
-Client-side rendering — no data leaves your browser.
-
-![Demo](site/assets/demo/demo.gif)
-
----
 
 ## Why Mermaid Toolkit?
 
@@ -71,9 +67,7 @@ Client-side rendering — no data leaves your browser.
 
 ## Installation
 
-
-
-1. Visit the [Google Workspace Marketplace™ listing](#)
+1. Visit the [Google Workspace Marketplace™ listing](https://workspace.google.com/marketplace/app/mermaid_toolkit_for_google_docs/490705954273)
 2. Click **Install**
 3. Grant the required permissions (see [Privacy](#privacy))
 4. Open any Google Doc™ — the add-on appears under **Extensions → Mermaid Toolkit**
@@ -202,10 +196,8 @@ Release notes live in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-[MIT](LICENSE) — Copyright (c) 2026 Numan Aral
+[MIT](LICENSE) — Copyright (c) 2026 [Numan Aral](https://numanaral.dev?utm_source=mermaid-github&utm_medium=readme&utm_campaign=mermaid_toolkit)
 
 ---
-
-Created by [Numan Aral](https://numanaral.dev?utm_source=mermaid-github&utm_medium=readme&utm_campaign=mermaid_toolkit)
 
 Google Docs™, Google Drive™, and Google Workspace™ are trademarks of Google LLC. This add-on is not affiliated with or endorsed by Google.
