@@ -2,5 +2,18 @@
   "installCommand": "yarn install --frozen-lockfile",
   "buildCommand": "yarn site:build",
   "outputDirectory": "_site",
-  "trailingSlash": true
+  "trailingSlash": true,
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "mermaid-toolkit-for-google-docs.vercel.app"
+        }
+      ],
+      "destination": "https://mermaid.numanaral.dev/:path*",
+      "permanent": true
+    }
+  ]
 }
