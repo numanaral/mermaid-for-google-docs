@@ -1,0 +1,6 @@
+{
+  "installCommand": "yarn install --frozen-lockfile",
+  "buildCommand": "yarn site:build",
+  "outputDirectory": "_site",
+  "trailingSlash": true
+}

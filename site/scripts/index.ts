@@ -1,3 +1,7 @@
+import { inject } from "@vercel/analytics";
+
+inject();
+
 document.documentElement.classList.add("js");
 
 document.addEventListener("DOMContentLoaded", () => {
