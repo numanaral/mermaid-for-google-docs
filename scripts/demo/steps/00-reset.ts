@@ -12,7 +12,10 @@ export const step00Reset = async (ctx: StepContext): Promise<void> => {
     const edArea = page.locator(".kix-appview-editor");
     const edRect = await edArea.boundingBox().catch(() => null);
     if (edRect) {
-      await page.mouse.click(edRect.x + edRect.width / 2, edRect.y + edRect.height / 2);
+      await page.mouse.click(
+        edRect.x + edRect.width / 2,
+        edRect.y + edRect.height / 2,
+      );
       await sleep(300);
     }
     await page.keyboard.press("Meta+a");
@@ -25,7 +28,10 @@ export const step00Reset = async (ctx: StepContext): Promise<void> => {
     await tab1.click({ force: true });
     await sleep(1500);
     if (edRect) {
-      await page.mouse.click(edRect.x + edRect.width / 2, edRect.y + edRect.height / 2);
+      await page.mouse.click(
+        edRect.x + edRect.width / 2,
+        edRect.y + edRect.height / 2,
+      );
       await sleep(300);
     }
     await page.keyboard.press("Meta+a");
@@ -39,9 +45,10 @@ export const step00Reset = async (ctx: StepContext): Promise<void> => {
     await page.keyboard.press("Meta+ArrowRight");
     await sleep(200);
     await page.keyboard.press("Enter");
-    await sleep(200);
+    await sleep(400);
     console.log("   Cursor placed below title in Tab 1");
     await shot("00-reset-ready");
+    await sleep(1800);
   } else {
     console.log("   ⚠ Tab 5 not found, skipping reset");
   }

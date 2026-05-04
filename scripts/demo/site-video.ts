@@ -75,7 +75,7 @@ const main = (): void => {
   // step 01 flow that happens after the template chip iteration finishes and
   // before the custom flowchart typing loop begins. Tweak here if step 01's
   // timing changes (e.g. SLEEP or CLICK delays in 01-insert.ts).
-  const POSTER_OFFSET_SEC = 14.1;
+  const POSTER_OFFSET_SEC = 12.76;
   const posterSec = (step1.startMs / 1000 + POSTER_OFFSET_SEC).toFixed(3);
   const posterPng = path.join(SITE_ASSETS, "demo-poster.png");
   const posterWebp = path.join(SITE_ASSETS, "demo-poster.webp");

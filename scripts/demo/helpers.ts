@@ -541,6 +541,31 @@ export const cleanBetween = async (page: Page): Promise<void> => {
   await page.mouse.move(lastPos.x, lastPos.y);
 };
 
+export const showDocumentScroll = async (
+  page: Page,
+  shot: (label: string) => Promise<void>,
+  label: string,
+): Promise<void> => {
+  const editor = page.locator(".kix-appview-editor").first();
+  const box = await editor.boundingBox().catch(() => null);
+  const x = box ? box.x + box.width / 2 : VP_W / 2;
+  const y = box ? box.y + box.height / 2 : VP_H / 2;
+
+  console.log("   Scrolling document result...");
+  await page.mouse.move(x, y);
+  await sleep(300);
+  await page.mouse.wheel(0, 760);
+  await sleep(900);
+  await shot(`${label}-scrolled`);
+  await page.mouse.wheel(0, 760);
+  await sleep(700);
+  await shot(`${label}-scrolled-more`);
+
+  await page.keyboard.press("Meta+ArrowUp");
+  await sleep(900);
+  await shot(`${label}-back-to-top`);
+};
+
 // ─── Menu navigation ─────────────────────────────────
 
 export const openMenuItem = async (
@@ -668,6 +693,30 @@ export const typeHumanLike = async (
   }
 };
 
+export const typeCodeLines = async (
+  target: Locator,
+  lines: string[],
+  minDelay = 15,
+  maxDelay = 35,
+): Promise<void> => {
+  for (let i = 0; i < lines.length; i++) {
+    const current = await target.inputValue().catch(() => "");
+    const currentLine = current.slice(current.lastIndexOf("\n") + 1);
+    const desiredLine = lines[i];
+    const remaining = desiredLine.startsWith(currentLine)
+      ? desiredLine.slice(currentLine.length)
+      : desiredLine;
+
+    if (remaining) {
+      await typeHumanLike(target, remaining, minDelay, maxDelay);
+    }
+    if (i < lines.length - 1) {
+      await target.press("Enter");
+      await sleep(40);
+    }
+  }
+};
+
 // ─── Image helpers ───────────────────────────────────
 
 export const imageToolbarVisible = async (page: Page): Promise<boolean> =>
@@ -710,16 +759,15 @@ export const buildInsertFlowchartLines = (runTag: string): string[] => [
 
 export const buildEditedFlowchart = (_source: string, runTag: string): string =>
   [
-    "flowchart LR",
-    `    A[Project Hub ${runTag}] --> B{Workflow ${runTag}}`,
-    "    B -->|New| C[Add New]",
-    "    B -->|Edit| D[Revise]",
-    "    C --> E[Preview]",
-    "    D --> E",
-    `    E --> F[Publish ${runTag}]`,
-    `    E --> G[QA Signoff ${runTag}]`,
-    `    G --> H[Share Link ${runTag}]`,
-    `    F --> I[Archive ${runTag}]`,
+    "sequenceDiagram",
+    `    participant U as User ${runTag}`,
+    "    participant D as Google Docs",
+    "    participant M as Mermaid Toolkit",
+    "    U->>D: Select existing diagram",
+    "    D->>M: Open editor",
+    "    M-->>U: Show live preview",
+    "    U->>M: Update Mermaid source",
+    `    M-->>D: Replace diagram ${runTag}`,
   ].join("\n");
 
 export const buildEditAllFlowchart = (
@@ -727,15 +775,14 @@ export const buildEditAllFlowchart = (
   runTag: string,
 ): string =>
   [
-    "flowchart LR",
-    `    A[Workspace Board ${runTag}] --> B{Release Track ${runTag}}`,
-    "    B -->|Draft| C[Review Changes]",
-    "    B -->|Ship| D[Publish Update]",
-    "    C --> E[Collect Notes]",
-    "    D --> F[Notify Team]",
-    `    E --> G[QA Review ${runTag}]`,
-    `    F --> H[Share Summary ${runTag}]`,
-    `    G --> I[Archive Batch ${runTag}]`,
+    "flowchart TB",
+    `    A([Release Plan ${runTag}]) --> B[Draft Notes]`,
+    "    B --> C{Ready to ship?}",
+    "    C -->|Yes| D[Publish Update]",
+    "    C -->|No| E[Revise Scope]",
+    "    E -.-> B",
+    "    D --> F{{Notify Team}}",
+    `    F --> G[(Archive ${runTag})]`,
   ].join("\n");
 
 export const SAMPLE_MARKDOWN = `# Sample Document

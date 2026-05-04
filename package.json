@@ -1,6 +1,6 @@
 {
   "name": "mermaid-toolkit-for-google-docs",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Render Mermaid diagrams as images directly in Google Docs™.",
   "scripts": {
@@ -27,9 +27,7 @@
     "demo:gif": "tsx scripts/demo/to-gif.ts",
     "demo:webm": "tsx scripts/demo/to-webm.ts",
     "demo:site-video": "tsx scripts/demo/site-video.ts",
-    "demo:demo-gif": "tsx scripts/demo/demo-gif.ts",
-    "demo:code-to-diagram-for-one": "tsx scripts/demo/record-convert-selected.ts",
-    "demo:diagram-to-code-for-one": "tsx scripts/demo/record-diagram-to-code-selected.ts"
+    "demo:demo-gif": "tsx scripts/demo/demo-gif.ts"
   },
   "repository": {
     "type": "git",

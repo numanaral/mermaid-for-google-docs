@@ -6,6 +6,7 @@ import {
   enterDialog,
   isDialogOpen,
   cleanBetween,
+  showDocumentScroll,
 } from "../helpers";
 
 export const step06DiagramToCodeForAll = async (
@@ -63,6 +64,7 @@ export const step06DiagramToCodeForAll = async (
       );
     await sleep(1500);
     await shot("18-after-diagrams-to-code");
+    await showDocumentScroll(page, shot, "18-after-diagrams-to-code");
     console.log("   ✓ All replaced");
   }
   await cleanBetween(page);

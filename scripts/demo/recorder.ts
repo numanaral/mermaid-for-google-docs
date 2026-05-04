@@ -60,8 +60,10 @@ const steps = [
 const TOTAL_STEPS = steps.length - 1;
 
 const main = async (): Promise<void> => {
-  const stepRange = parseStepRange(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  const stepRange = parseStepRange(args);
   const isBatch = stepRange.start !== 0 || stepRange.end !== TOTAL_STEPS;
+  const captureShots = isBatch || args.includes("--shots");
   const rangeLabel = `${String(stepRange.start).padStart(2, "0")}-${String(stepRange.end).padStart(2, "0")}`;
   const runTag = nextRunTag(`demo-${rangeLabel}`);
 
@@ -124,7 +126,7 @@ const main = async (): Promise<void> => {
     isBatch,
     stepRange,
     shot: async (label: string) => {
-      if (!isBatch) return;
+      if (!captureShots) return;
       await page.screenshot({
         path: path.join(SCREENSHOTS_DIR, `${runTag}-${label}.png`),
       });

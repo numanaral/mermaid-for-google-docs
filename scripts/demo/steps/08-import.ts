@@ -6,6 +6,7 @@ import {
   enterDialog,
   isDialogOpen,
   cleanBetween,
+  showDocumentScroll,
   SAMPLE_MARKDOWN,
 } from "../helpers";
 
@@ -142,10 +143,20 @@ export const step08Import = async (ctx: StepContext): Promise<void> => {
     console.log("   Replacing document...");
     await iClick(replaceBtn, 18);
     const closed = await poll(async () => !(await isDialogOpen(page)), 30000);
-    if (!closed)
-      throw new Error("Import from Markdown did not close after replace.");
+    if (!closed) {
+      await shot("22-import-timeout");
+      const statusText = await iframe
+        .locator("#status")
+        .textContent()
+        .catch(() => "");
+      throw new Error(
+        "Import from Markdown did not close after replace." +
+          (statusText ? ` Status: ${statusText}` : ""),
+      );
+    }
     await sleep(1500);
     await shot("22-after-import");
+    await showDocumentScroll(page, shot, "22-after-import");
     console.log("   ✓ Document replaced");
   }
   await cleanBetween(page);
