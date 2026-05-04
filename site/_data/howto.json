@@ -29,7 +29,7 @@
     "steps": [
       {
         "title": "Write Mermaid syntax",
-        "desc": "Place your diagram code inside a code block or fenced <code>```mermaid</code> block in your Google Doc™."
+        "desc": "Place your diagram code inside a code block or fenced <code>```mermaid</code> block in your Google Doc."
       },
       {
         "title": "Run the renderer",
@@ -88,7 +88,7 @@
     "subtitle": "Import and export markdown",
     "screenshot": "/assets/gifs/import-markdown.gif",
     "clip": "/assets/clips/import-markdown.webm",
-    "desc": "Bring markdown into Google Docs™ or export your document back to markdown.",
+    "desc": "Bring markdown into Google Docs or export your document back to markdown.",
     "steps": [
       {
         "title": "Import from Markdown",
@@ -96,7 +96,7 @@
       },
       {
         "title": "Export as Markdown",
-        "desc": "Extensions → Mermaid Toolkit → Export as Markdown. Converts your entire Google Doc™ to markdown with Mermaid source extracted from diagram alt text."
+        "desc": "Extensions → Mermaid Toolkit → Export as Markdown. Converts your entire Google Doc to markdown with Mermaid source extracted from diagram alt text."
       },
       {
         "title": "Round-trip ready",

@@ -2,7 +2,7 @@
 permalink: /limitations/
 layout: base.njk
 pageTitle: Known Limitations
-pageDescription: "Known limitations of rendering Mermaid diagrams in Google Docs™ — Apps Script sandbox constraints, image resolution, and workarounds."
+pageDescription: "Known limitations of rendering Mermaid diagrams in Google Docs — Apps Script sandbox constraints, image resolution, and workarounds."
 pageCss: limitations
 sitemapPriority: 0.5
 ---
@@ -13,7 +13,7 @@ sitemapPriority: 0.5
   </div>
 
   <div class="limitations-content">
-    <p class="limitations-intro">{{ site.title }} runs entirely inside Google Docs™ using Apps Script and the <code>DocumentApp</code> API. While this keeps your data private and requires no external server, it also means we inherit every limitation of the Apps Script sandbox and what <code>DocumentApp</code> exposes to Google Workspace™ add-ons. Below are the ones you're most likely to notice.</p>
+    <p class="limitations-intro">{{ site.shortTitle }} runs entirely inside Google Docs using Apps Script and the <code>DocumentApp</code> API. While this keeps your data private and requires no external server, it also means we inherit every limitation of the Apps Script sandbox and what <code>DocumentApp</code> exposes to Google Workspace add-ons. Below are the ones you're most likely to notice.</p>
 
     <div class="limitation-card reveal" id="plain-text-checkboxes">
       <div class="limitation-icon info">
@@ -26,9 +26,9 @@ sitemapPriority: 0.5
           <span class="tag tag-impact">Import from Markdown</span>
           <span class="tag tag-impact">Export as Markdown</span>
         </div>
-        <p>Checklist items (<code>- [ ]</code> / <code>- [x]</code>) are imported as ordinary bullet list items whose text starts with a literal <code>[ ]</code> or <code>[x]</code> marker instead of being converted to Google Docs™ native checkbox glyphs.</p>
+        <p>Checklist items (<code>- [ ]</code> / <code>- [x]</code>) are imported as ordinary bullet list items whose text starts with a literal <code>[ ]</code> or <code>[x]</code> marker instead of being converted to Google Docs native checkbox glyphs.</p>
         <div class="limitation-detail">
-          <strong>Why:</strong> The <code>DocumentApp</code> API available to Apps Script add-ons has no method for creating native Google Docs™ checkbox glyphs — no <code>createChecklist()</code>, no <code>GlyphType.CHECKBOX</code>. The only path to native checkboxes is a REST call (<code>Docs.Documents.batchUpdate</code> with <code>BULLET_CHECKBOX</code>) that this add-on no longer uses as it requires the broader <code>documents</code> OAuth scope. The plain-text representation gives a checkbox-like UX using the primitives <code>DocumentApp</code> actually exposes. See the <a href="/changelog/#v1-1-0" class="pretty-link" title="Introduced in v1.1.0">v1.1.0 changelog entry</a> for the full rationale.
+          <strong>Why:</strong> The <code>DocumentApp</code> API available to Apps Script add-ons has no method for creating native Google Docs checkbox glyphs — no <code>createChecklist()</code>, no <code>GlyphType.CHECKBOX</code>. The only path to native checkboxes is a REST call (<code>Docs.Documents.batchUpdate</code> with <code>BULLET_CHECKBOX</code>) that this add-on no longer uses as it requires the broader <code>documents</code> OAuth scope. The plain-text representation gives a checkbox-like UX using the primitives <code>DocumentApp</code> actually exposes. See the <a href="/changelog/#v1-1-0" class="pretty-link" title="Introduced in v1.1.0">v1.1.0 changelog entry</a> for the full rationale.
         </div>
       </div>
     </div>
@@ -45,7 +45,7 @@ sitemapPriority: 0.5
         </div>
         <p>When importing markdown with fenced code blocks, the add-on inserts them as single-cell tables with a monospace font and light background — a visual approximation, not a true code block.</p>
         <div class="limitation-detail">
-          <strong>Why:</strong> <code>DocumentApp</code> has no method for creating Google Docs™ <a href="https://workspaceupdates.googleblog.com/2022/12/format-display-code-google-docs.html" class="pretty-link" target="_blank" rel="noopener">native Code Blocks</a> (the <strong>Insert → Building blocks → Code blocks</strong> element), and that feature is only available on some paid Workspace plans and not personal accounts. A single-cell table is the closest way to get a similar visual result.
+          <strong>Why:</strong> <code>DocumentApp</code> has no method for creating Google Docs <a href="https://workspaceupdates.googleblog.com/2022/12/format-display-code-google-docs.html" class="pretty-link" target="_blank" rel="noopener">native Code Blocks</a> (the <strong>Insert → Building blocks → Code blocks</strong> element), and that feature is only available on some paid Workspace plans and not personal accounts. A single-cell table is the closest way to get a similar visual result.
         </div>
       </div>
     </div>
@@ -60,9 +60,9 @@ sitemapPriority: 0.5
           <span class="tag tag-api">Apps Script Sandbox</span>
           <span class="tag tag-impact">All Diagrams</span>
         </div>
-        <p>Mermaid diagrams are rendered as PNG images inside Google Docs™. They cannot be interactive, zoomable, or auto-updated when the source changes. You can simply use <code>Import from Markdown</code> or <code>Export as Markdown</code> will update the diagram image to match the source.</p>
+        <p>Mermaid diagrams are rendered as PNG images inside Google Docs. They cannot be interactive, zoomable, or auto-updated when the source changes. You can simply use <code>Import from Markdown</code> or <code>Export as Markdown</code> will update the diagram image to match the source.</p>
         <div class="limitation-detail">
-          <strong>Why:</strong> Google Docs™ only supports inline images (raster). There is no support for embedded SVG, interactive elements, or live-updating content.
+          <strong>Why:</strong> Google Docs only supports inline images (raster). There is no support for embedded SVG, interactive elements, or live-updating content.
         </div>
       </div>
     </div>
@@ -113,7 +113,7 @@ sitemapPriority: 0.5
     </div>
 
     <h2 class="workarounds-heading reveal" id="workarounds">Workarounds</h2>
-    <p class="limitations-intro reveal">Some limitations can be worked around using a combination of native Google Docs™ features and the add-on's tools.</p>
+    <p class="limitations-intro reveal">Some limitations can be worked around using a combination of native Google Docs features and the add-on's tools.</p>
 
     <div class="limitation-card reveal">
       <div class="limitation-icon info">
@@ -125,14 +125,14 @@ sitemapPriority: 0.5
           <span class="tag tag-api">Workaround</span>
           <span class="tag tag-impact">Import from Markdown</span>
         </div>
-        <p>If the add-on's import limitations (table-based code blocks, plain-text checkboxes) are a problem, you can use Google Docs™' native <strong>Paste as Markdown</strong> feature instead:</p>
+        <p>If the add-on's import limitations (table-based code blocks, plain-text checkboxes) are a problem, you can use Google Docs' native <strong>Paste as Markdown</strong> feature instead:</p>
         <ol class="workaround-steps">
           <li>Copy your markdown content</li>
-          <li>In Google Docs™, use <strong>Edit → Paste as Markdown</strong> (or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> on some versions)</li>
+          <li>In Google Docs, use <strong>Edit → Paste as Markdown</strong> (or <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> on some versions)</li>
           <li>Run <strong>Convert All Code to Diagrams</strong> to render any mermaid code blocks as diagrams</li>
         </ol>
         <div class="limitation-detail">
-          <strong>Trade-offs:</strong> Native paste doesn't apply our inline code styling, table header highlighting, or automatic diagram rendering, and fenced code blocks only land as native Code Blocks on plans that support that feature — personal accounts and starter-tier Workspace plans get plain paragraphs instead. "Paste as Markdown" itself is <a href="https://support.google.com/docs/answer/12014036" class="pretty-link" target="_blank" rel="noopener">available on all Google Docs™ accounts</a>, including personal ones.
+          <strong>Trade-offs:</strong> Native paste doesn't apply our inline code styling, table header highlighting, or automatic diagram rendering, and fenced code blocks only land as native Code Blocks on plans that support that feature — personal accounts and starter-tier Workspace plans get plain paragraphs instead. "Paste as Markdown" itself is <a href="https://support.google.com/docs/answer/12014036" class="pretty-link" target="_blank" rel="noopener">available on all Google Docs accounts</a>, including personal ones.
         </div>
       </div>
     </div>
@@ -147,7 +147,7 @@ sitemapPriority: 0.5
           <span class="tag tag-api">Workaround</span>
           <span class="tag tag-impact">Export as Markdown</span>
         </div>
-        <p>If your document contains native Google Docs™ checkbox glyphs (for example, items inserted via Google's own <strong>Insert → Checklist</strong> UI) and you need their checked state in the exported markdown, you can route through Google Docs™' native <strong>Copy as Markdown</strong> instead of the add-on's exporter:</p>
+        <p>If your document contains native Google Docs checkbox glyphs (for example, items inserted via Google's own <strong>Insert → Checklist</strong> UI) and you need their checked state in the exported markdown, you can route through Google Docs' native <strong>Copy as Markdown</strong> instead of the add-on's exporter:</p>
         <ol class="workaround-steps">
           <li>First, run <strong>Convert All Diagrams to Code</strong> to turn diagrams back into Mermaid source</li>
           <li>Select all content (<kbd>Ctrl</kbd>+<kbd>A</kbd>) and use <strong>Edit → Copy as Markdown</strong></li>
@@ -155,7 +155,7 @@ sitemapPriority: 0.5
           <li>If the Mermaid code is mangled, paste it into our <strong>Fix Native "Copy as Markdown"</strong> tool to repair it</li>
         </ol>
         <div class="limitation-detail">
-          <strong>Why the add-on's exporter doesn't do this:</strong> The <code>DocumentApp</code> API exposes paragraphs and list items but not the checked/unchecked state of native checkbox glyphs. Google's native Copy-as-Markdown reads the underlying data model directly, so it can preserve that state. The trade-off is that its Mermaid syntax output is often mangled — the Fix tool handles that part. "Copy as Markdown" is <a href="https://support.google.com/docs/answer/12014036" class="pretty-link" target="_blank" rel="noopener">available on all Google Docs™ accounts</a>, including personal ones.
+          <strong>Why the add-on's exporter doesn't do this:</strong> The <code>DocumentApp</code> API exposes paragraphs and list items but not the checked/unchecked state of native checkbox glyphs. Google's native Copy-as-Markdown reads the underlying data model directly, so it can preserve that state. The trade-off is that its Mermaid syntax output is often mangled — the Fix tool handles that part. "Copy as Markdown" is <a href="https://support.google.com/docs/answer/12014036" class="pretty-link" target="_blank" rel="noopener">available on all Google Docs accounts</a>, including personal ones.
         </div>
       </div>
     </div>

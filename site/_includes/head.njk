@@ -4,7 +4,7 @@
   <script async src="https://www.googletagmanager.com/gtag/js?id={{ site.ga }}"></script>
   <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','{{ site.ga }}');</script>
   {%- endif %}
-  {%- set fullTitle %}{% if pageTitle %}{{ pageTitle }} — {% endif %}{{ site.title }}{% endset %}
+{%- set fullTitle %}{% if pageTitle %}{{ pageTitle }} — {% endif %}{{ site.title }}{% endset %}
   <title>{{ fullTitle }}</title>
   <meta name="description" content="{{ pageDescription or site.description }}">
   <link rel="canonical" href="{{ site.url }}{{ page.url }}">
@@ -27,7 +27,7 @@
     "@context": "https://schema.org",
     "@type": "WebSite",
     "name": "{{ site.title }}",
-    "alternateName": ["Mermaid for Google Docs™", "Mermaid Add-on", "Google Docs™ Mermaid Plugin"],
+    "alternateName": ["Mermaid for Google Docs", "Mermaid Add-on", "Google Docs Mermaid Plugin"],
     "url": "{{ site.url }}",
     "description": "{{ site.description }}",
     "author": {
