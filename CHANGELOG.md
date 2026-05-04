@@ -4,6 +4,29 @@ All notable changes to Mermaid Toolkit for Google Docs™ are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.1.1] — 2026-05-04
+
+**Faster dialogs, better editor ergonomics, better-fitting diagram images.**
+
+### Added
+
+- **Line numbers** in Mermaid source editors, markdown import/export, and markdown repair dialogs, including soft-wrap alignment and refreshes after template or paste-driven source changes.
+- **Slow-operation toasts** for large import, export, and bulk conversion jobs, with links to the relevant limitation notes.
+
+### Changed
+
+- **Inserted and replaced diagrams are selected automatically** where Google Docs permits it, so follow-up actions like editing the inserted diagram require fewer clicks.
+- **Dialogs load Mermaid and Markdown libraries more efficiently.** Shared loaders cache CDN scripts, lazy-load where possible, and render larger batches incrementally.
+- **Bulk conversion dialogs scan the document after opening** so the UI can appear earlier instead of waiting on server-side scanning before the dialog is shown.
+- **Import from Markdown replacement** is faster for full-document imports.
+- **Export as Markdown** performs fewer per-run `DocumentApp` attribute calls.
+- **Dialog code now uses published client-side Apps Script typings** via `@types/google.script.client-side`.
+- **Demo recording scripts and media** were refreshed for the latest dialog behavior and UI.
+
+### Fixed
+
+- **Diagram images fit the current page content area** using document margins, with height capping for tall diagrams.
+
 ## [v1.1.0] — 2026-04-22
 
 **Text-based checkboxes, narrower OAuth scope.**
@@ -63,5 +86,6 @@ v1.1.0 gives up that functionality. It removes the Advanced Service dependency e
 
 Superseded by v1.1.0's `documents.currentonly` scope. See the v1.1.0 entry above for the full rationale.
 
+[v1.1.1]: https://github.com/numanaral/mermaid-toolkit-for-google-docs/releases/tag/v1.1.1
 [v1.1.0]: https://github.com/numanaral/mermaid-toolkit-for-google-docs/releases/tag/v1.1.0
 [v1.0.0]: https://github.com/numanaral/mermaid-toolkit-for-google-docs/releases/tag/v1.0.0
