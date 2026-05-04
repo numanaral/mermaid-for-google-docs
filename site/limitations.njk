@@ -2,7 +2,7 @@
 permalink: /limitations/
 layout: base.njk
 pageTitle: Known Limitations
-pageDescription: "Known limitations of rendering Mermaid diagrams in Google Docs — Apps Script sandbox constraints, image resolution, and workarounds."
+pageDescription: "Known limitations of rendering Mermaid diagrams in Google Docs — Apps Script sandbox constraints, import/export performance, image resolution, and workarounds."
 pageCss: limitations
 sitemapPriority: 0.5
 ---
@@ -14,6 +14,24 @@ sitemapPriority: 0.5
 
   <div class="limitations-content">
     <p class="limitations-intro">{{ site.shortTitle }} runs entirely inside Google Docs using Apps Script and the <code>DocumentApp</code> API. While this keeps your data private and requires no external server, it also means we inherit every limitation of the Apps Script sandbox and what <code>DocumentApp</code> exposes to Google Workspace add-ons. Below are the ones you're most likely to notice.</p>
+
+    <div class="limitation-card reveal" id="large-document-performance">
+      <div class="limitation-icon info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      </div>
+      <div class="limitation-body">
+        <h2>Large Documents Can Take Time to Import or Export</h2>
+        <div class="limitation-tags">
+          <span class="tag tag-api">DocumentApp</span>
+          <span class="tag tag-impact">Import from Markdown</span>
+          <span class="tag tag-impact">Export as Markdown</span>
+        </div>
+        <p>Importing or exporting a large document, especially one with many Mermaid diagrams, can take several seconds. The add-on shows a note when an import or export operation runs longer than expected.</p>
+        <div class="limitation-detail">
+          <strong>Why:</strong> To keep the add-on on the narrower <code>documents.currentonly</code> OAuth scope, rich document work goes through Apps Script's <code>DocumentApp</code> API. That API exposes document content as individual paragraphs, list items, tables, text runs, and images rather than one bulk markdown import/export operation. The add-on has to walk that structure and rebuild it carefully so formatting, lists, tables, and Mermaid diagrams survive the round trip.
+        </div>
+      </div>
+    </div>
 
     <div class="limitation-card reveal" id="plain-text-checkboxes">
       <div class="limitation-icon info">
