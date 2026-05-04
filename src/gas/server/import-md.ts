@@ -1,4 +1,8 @@
-import { appendCodeBlock, encodeMermaidSource } from "./doc-utils";
+import {
+  appendCodeBlock,
+  encodeMermaidSource,
+  fitImageToPage,
+} from "./doc-utils";
 import { MERMAID_ALT_TITLE } from "./constants";
 import { getActiveBody } from "./tab-utils";
 
@@ -35,6 +39,15 @@ interface ImportElement {
   rows?: Seg[][][];
   items?: ImportListItem[];
 }
+
+const timeServer = <T>(label: string, fn: () => T): T => {
+  const start = Date.now();
+  try {
+    return fn();
+  } finally {
+    console.log(`[perf] ${label}: ${Date.now() - start}ms`);
+  }
+};
 
 const applySegments = (
   text: GoogleAppsScript.Document.Text,
@@ -139,6 +152,7 @@ const needsSpacerBetween = (
 const appendElements = (
   body: GoogleAppsScript.Document.Body,
   elements: ImportElement[],
+  firstParagraph?: GoogleAppsScript.Document.Paragraph,
 ): void => {
   const headingMap: Record<number, GoogleAppsScript.Document.ParagraphHeading> =
     {
@@ -151,6 +165,15 @@ const appendElements = (
     };
 
   let prevType: ImportElement["type"] | null = null;
+  let reusableParagraph = firstParagraph ?? null;
+  const nextParagraph = (): GoogleAppsScript.Document.Paragraph => {
+    if (reusableParagraph) {
+      const para = reusableParagraph;
+      reusableParagraph = null;
+      return para;
+    }
+    return body.appendParagraph("");
+  };
 
   for (const el of elements) {
     if (prevType && needsSpacerBetween(prevType, el.type)) {
@@ -159,7 +182,7 @@ const appendElements = (
 
     switch (el.type) {
       case "heading": {
-        const para = body.appendParagraph("");
+        const para = nextParagraph();
         para.setHeading(
           headingMap[el.level || 1] || DocumentApp.ParagraphHeading.HEADING1,
         );
@@ -168,13 +191,13 @@ const appendElements = (
       }
 
       case "paragraph": {
-        const para = body.appendParagraph("");
+        const para = nextParagraph();
         applySegments(para.editAsText(), el.content);
         break;
       }
 
       case "blockquote": {
-        const para = body.appendParagraph("");
+        const para = nextParagraph();
         applySegments(para.editAsText(), el.content);
         // DocumentApp has no native "Quote" paragraph style, so we lean on
         // indent + italic + muted colour to signal "this is a quotation" in a
@@ -209,6 +232,7 @@ const appendElements = (
             "mermaid-diagram.png",
           );
           const image = body.appendImage(blob);
+          fitImageToPage(image, body);
           if (el.mermaidSource) {
             image.setAltTitle(MERMAID_ALT_TITLE);
             image.setAltDescription(encodeMermaidSource(el.mermaidSource));
@@ -261,14 +285,16 @@ export const importMarkdownAtCursor = (
 ): { success: boolean } => {
   let elements: ImportElement[];
   try {
-    elements = JSON.parse(payloadJson);
+    elements = timeServer("importmd:parse-payload", () =>
+      JSON.parse(payloadJson),
+    ) as ImportElement[];
   } catch {
     throw new Error("Invalid import payload. Please try again.");
   }
   const doc = DocumentApp.getActiveDocument();
   const { body } = getActiveBody(doc);
 
-  appendElements(body, elements);
+  timeServer("importmd:append-at-cursor", () => appendElements(body, elements));
   return { success: true };
 };
 
@@ -277,21 +303,34 @@ export const importMarkdownReplace = (
 ): { success: boolean } => {
   let elements: ImportElement[];
   try {
-    elements = JSON.parse(payloadJson);
+    elements = timeServer("importmd:parse-payload", () =>
+      JSON.parse(payloadJson),
+    ) as ImportElement[];
   } catch {
     throw new Error("Invalid import payload. Please try again.");
   }
   const doc = DocumentApp.getActiveDocument();
   const { body } = getActiveBody(doc);
+  let staleAnchor: GoogleAppsScript.Document.Element | null = null;
 
-  const oldCount = body.getNumChildren();
+  const firstParagraph = timeServer("importmd:clear-old-content", () => {
+    body.setText("");
+    const first = body.getChild(0);
+    if (first.getType() === DocumentApp.ElementType.PARAGRAPH) {
+      return first.asParagraph();
+    }
+    staleAnchor = first;
+    return undefined;
+  });
 
-  appendElements(body, elements);
-
-  for (let n = 0; n < oldCount; n++) {
-    if (body.getNumChildren() <= 1) break;
-    body.removeChild(body.getChild(0));
-  }
+  timeServer("importmd:append-replacement", () =>
+    appendElements(body, elements, firstParagraph),
+  );
+  timeServer("importmd:cleanup-replacement-anchor", () => {
+    if (staleAnchor && body.getNumChildren() > 1) {
+      body.removeChild(staleAnchor);
+    }
+  });
 
   return { success: true };
 };

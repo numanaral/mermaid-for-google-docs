@@ -86,6 +86,131 @@ export const setMermaidAlt = (
   image.setAltDescription(encodeMermaidSource(mermaidSource));
 };
 
+const getContentBoxSize = (
+  body: GoogleAppsScript.Document.Body,
+): { width: number; height: number } => {
+  const pixelsPerPoint = 96 / 72;
+  const fallback = { width: 624, height: 864 };
+  try {
+    const width =
+      (body.getPageWidth() - body.getMarginLeft() - body.getMarginRight()) *
+      pixelsPerPoint;
+    const height =
+      (body.getPageHeight() - body.getMarginTop() - body.getMarginBottom()) *
+      pixelsPerPoint;
+    return {
+      width: Number.isFinite(width) && width > 0 ? width : fallback.width,
+      height: Number.isFinite(height) && height > 0 ? height : fallback.height,
+    };
+  } catch {
+    return fallback;
+  }
+};
+
+export const fitImageToPage = (
+  image: GoogleAppsScript.Document.InlineImage,
+  body: GoogleAppsScript.Document.Body,
+): void => {
+  const { width: maxWidth, height: maxHeight } = getContentBoxSize(body);
+  const currentWidth = image.getWidth();
+  const currentHeight = image.getHeight();
+  if (!currentWidth || !currentHeight) return;
+
+  const targetWidth = maxWidth;
+  const comfortableMaxHeight = maxHeight * 0.72;
+  const scale = Math.min(
+    targetWidth / currentWidth,
+    comfortableMaxHeight / currentHeight,
+  );
+  if (Math.abs(scale - 1) < 0.02) return;
+
+  image.setWidth(Math.floor(currentWidth * scale));
+  image.setHeight(Math.floor(currentHeight * scale));
+};
+
+const trySetCursorAtElementStart = (
+  doc: GoogleAppsScript.Document.Document,
+  element: GoogleAppsScript.Document.Element,
+): boolean => {
+  try {
+    const type = element.getType();
+    if (
+      type === DocumentApp.ElementType.PARAGRAPH ||
+      type === DocumentApp.ElementType.LIST_ITEM
+    ) {
+      const text =
+        type === DocumentApp.ElementType.PARAGRAPH
+          ? element.asParagraph().editAsText()
+          : element.asListItem().editAsText();
+      doc.setCursor(doc.newPosition(text, 0));
+      return true;
+    }
+    if (type === DocumentApp.ElementType.TABLE) {
+      const table = element.asTable();
+      const text = table.getRow(0).getCell(0).editAsText();
+      doc.setCursor(doc.newPosition(text, 0));
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+};
+
+export const moveCursorAfterBodyChild = (
+  doc: GoogleAppsScript.Document.Document,
+  body: GoogleAppsScript.Document.Body,
+  childIndex: number,
+): void => {
+  try {
+    if (childIndex + 1 < body.getNumChildren()) {
+      const next = body.getChild(childIndex + 1);
+      if (trySetCursorAtElementStart(doc, next)) return;
+    }
+
+    const para =
+      childIndex + 1 <= body.getNumChildren()
+        ? body.insertParagraph(childIndex + 1, "")
+        : body.appendParagraph("");
+    doc.setCursor(doc.newPosition(para.editAsText(), 0));
+  } catch {
+    /* Cursor placement is a UX enhancement; never fail the document edit. */
+  }
+};
+
+export const moveCursorAfterBodyElement = (
+  doc: GoogleAppsScript.Document.Document,
+  body: GoogleAppsScript.Document.Body,
+  element: GoogleAppsScript.Document.Element,
+): void => {
+  try {
+    let topLevel = element;
+    while (
+      topLevel.getParent() &&
+      topLevel.getParent().getType() !== DocumentApp.ElementType.BODY_SECTION
+    ) {
+      topLevel = topLevel.getParent();
+    }
+
+    moveCursorAfterBodyChild(doc, body, body.getChildIndex(topLevel));
+  } catch {
+    /* Cursor placement is a UX enhancement; never fail the document edit. */
+  }
+};
+
+export const selectBodyElement = (
+  doc: GoogleAppsScript.Document.Document,
+  body: GoogleAppsScript.Document.Body,
+  element: GoogleAppsScript.Document.Element,
+): void => {
+  try {
+    const range = doc.newRange().addElement(element).build();
+    doc.setSelection(range);
+  } catch {
+    moveCursorAfterBodyElement(doc, body, element);
+  }
+};
+
 const styleCodeTable = (table: GoogleAppsScript.Document.Table): void => {
   const cell = table.getRow(0).getCell(0);
   cell.setBackgroundColor("#f6f8fa");

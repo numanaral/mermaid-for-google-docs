@@ -10,16 +10,25 @@ const textToMarkdown = (text: GoogleAppsScript.Document.Text): string => {
 
   const indices = text.getTextAttributeIndices();
   let result = "";
+  const getAttr = (
+    attrs: Record<string, unknown>,
+    attr: GoogleAppsScript.Document.Attribute,
+  ): unknown => attrs[attr as unknown as string];
 
   for (let idx = 0; idx < indices.length; idx++) {
     const start = indices[idx];
     const end = idx + 1 < indices.length ? indices[idx + 1] : raw.length;
+    const attrs = text.getAttributes(start) as Record<string, unknown>;
 
-    const bold = text.isBold(start) ?? false;
-    const italic = text.isItalic(start) ?? false;
-    const strikethrough = text.isStrikethrough(start) ?? false;
-    const link = text.getLinkUrl(start);
-    const font = text.getFontFamily(start);
+    const bold = getAttr(attrs, DocumentApp.Attribute.BOLD) === true;
+    const italic = getAttr(attrs, DocumentApp.Attribute.ITALIC) === true;
+    const strikethrough =
+      getAttr(attrs, DocumentApp.Attribute.STRIKETHROUGH) === true;
+    const link = getAttr(attrs, DocumentApp.Attribute.LINK_URL) as
+      | string
+      | null
+      | undefined;
+    const font = getAttr(attrs, DocumentApp.Attribute.FONT_FAMILY);
     const isCode = font === "Roboto Mono" || font === "Courier New";
 
     let chunk = raw.substring(start, end);

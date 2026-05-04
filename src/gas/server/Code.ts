@@ -1,9 +1,11 @@
-import type { MermaidSnippet } from "./types";
+import type { MermaidImage, MermaidSnippet } from "./types";
 import {
   extractMermaidAtCursor,
   extractSelectedText,
+  fitImageToPage,
   insertFencedCode,
   makeBlob,
+  selectBodyElement,
   setMermaidAlt,
 } from "./doc-utils";
 import { findMermaidSnippets } from "./snippets";
@@ -13,7 +15,16 @@ import { getActiveBody } from "./tab-utils";
 
 // --- Dialog helpers ---
 
-const showPreviewDialog = (blockInfos: MermaidSnippet[]): void => {
+const timeServer = <T>(label: string, fn: () => T): T => {
+  const start = Date.now();
+  try {
+    return fn();
+  } finally {
+    console.log(`[perf] ${label}: ${Date.now() - start}ms`);
+  }
+};
+
+const showPreviewDialog = (blockInfos: MermaidSnippet[] | null): void => {
   const template = HtmlService.createTemplateFromFile("Preview");
   template.blockInfos = JSON.stringify(blockInfos);
 
@@ -37,7 +48,9 @@ const openEditorForImage = (source: string, imageChildIndex: number): void => {
   // Access the document before template evaluation to ensure the
   // OAuth authorization prompt fires when permissions haven't been granted yet.
   // Without this, createTemplateFromFile().evaluate() fails silently.
-  DocumentApp.getActiveDocument();
+  timeServer("auth:warm-active-document", () =>
+    DocumentApp.getActiveDocument(),
+  );
 
   const template = HtmlService.createTemplateFromFile("Editor");
   template.initialSource = source;
@@ -47,9 +60,7 @@ const openEditorForImage = (source: string, imageChildIndex: number): void => {
   DocumentApp.getUi().showModalDialog(html, "Mermaid Editor");
 };
 
-const openExtractDialog = (
-  images: ReturnType<typeof findMermaidImages>,
-): void => {
+const openExtractDialog = (images: MermaidImage[] | null): void => {
   const template = HtmlService.createTemplateFromFile("Extract");
   template.imageInfos = JSON.stringify(images);
 
@@ -88,20 +99,11 @@ export const openEditor = (): void => {
 };
 
 export const scanAndRender = (): void => {
-  const blocks = findMermaidSnippets();
-
-  if (blocks.length === 0) {
-    DocumentApp.getUi().alert(
-      "No mermaid code blocks found.\n\n" +
-        "Make sure your mermaid diagrams are in code " +
-        "blocks (paste from markdown or use Format > " +
-        "Code block), or wrapped in ```mermaid fences.",
-    );
-    return;
-  }
-
-  showPreviewDialog(blocks);
+  showPreviewDialog(null);
 };
+
+export const getMermaidSnippetsForPreview = (): MermaidSnippet[] =>
+  timeServer("scan:mermaid-snippets", () => findMermaidSnippets());
 
 export const renderSelection = (): void => {
   const doc = DocumentApp.getActiveDocument();
@@ -196,35 +198,18 @@ export const editSelectedMermaidImage = (): void => {
 };
 
 export const openEditDiagrams = (): void => {
-  const images = findMermaidImages();
-
-  if (images.length === 0) {
-    DocumentApp.getUi().alert(
-      "No Mermaid diagrams found.\n\n" +
-        "Only diagrams inserted by this add-on contain embedded Mermaid source code.",
-    );
-    return;
-  }
-
   const template = HtmlService.createTemplateFromFile("EditDiagrams");
-  template.imageInfos = JSON.stringify(images);
+  template.imageInfos = "null";
 
   const html = template.evaluate().setWidth(800).setHeight(600);
   DocumentApp.getUi().showModalDialog(html, "Edit All Mermaid Diagrams");
 };
 
+export const getMermaidImagesForDialog = (): MermaidImage[] =>
+  timeServer("scan:mermaid-images", () => findMermaidImages());
+
 export const extractMermaidFromImages = (): void => {
-  const images = findMermaidImages();
-
-  if (images.length === 0) {
-    DocumentApp.getUi().alert(
-      "No Mermaid diagrams found.\n\n" +
-        "Only diagrams inserted by this add-on contain embedded Mermaid source code.",
-    );
-    return;
-  }
-
-  openExtractDialog(images);
+  openExtractDialog(null);
 };
 
 export const convertSelectedImageToCode = (): void => {
@@ -266,11 +251,17 @@ export const insertDiagramAfterText = (
   index: number,
   mermaidSource: string,
 ): { success: boolean; index: number } => {
-  const body = DocumentApp.getActiveDocument().getBody();
+  const doc = DocumentApp.getActiveDocument();
+  const body = doc.getBody();
   const blob = makeBlob(base64Data, index);
+  const insertedIndex = endIdx >= 0 ? endIdx + 1 : body.getNumChildren();
   const image =
-    endIdx >= 0 ? body.insertImage(endIdx + 1, blob) : body.appendImage(blob);
+    endIdx >= 0
+      ? body.insertImage(insertedIndex, blob)
+      : body.appendImage(blob);
+  fitImageToPage(image, body);
   if (mermaidSource) setMermaidAlt(image, mermaidSource);
+  selectBodyElement(doc, body, image);
   return { success: true, index };
 };
 
@@ -281,7 +272,8 @@ export const replaceDiagramText = (
   index: number,
   mermaidSource: string,
 ): { success: boolean; index: number } => {
-  const body = DocumentApp.getActiveDocument().getBody();
+  const doc = DocumentApp.getActiveDocument();
+  const body = doc.getBody();
 
   if (startIdx < 0 || endIdx < 0) {
     throw new Error("Cannot replace: code block position unknown.");
@@ -289,12 +281,14 @@ export const replaceDiagramText = (
 
   const blob = makeBlob(base64Data, index);
   const image = body.insertImage(startIdx, blob);
+  fitImageToPage(image, body);
 
   for (let i = endIdx + 1; i > startIdx; i--) {
     body.removeChild(body.getChild(i));
   }
 
   if (mermaidSource) setMermaidAlt(image, mermaidSource);
+  selectBodyElement(doc, body, image);
   return { success: true, index };
 };
 
@@ -319,7 +313,9 @@ export const insertImageAtCursor = (
     try {
       const idx = body.getChildIndex(para);
       const image = body.insertImage(idx + 1, blob);
+      fitImageToPage(image, body);
       if (mermaidSource) setMermaidAlt(image, mermaidSource);
+      selectBodyElement(doc, body, image);
       return { success: true, position: "cursor" };
     } catch {
       /* fall through to append */
@@ -327,7 +323,9 @@ export const insertImageAtCursor = (
   }
 
   const image = body.appendImage(blob);
+  fitImageToPage(image, body);
   if (mermaidSource) setMermaidAlt(image, mermaidSource);
+  selectBodyElement(doc, body, image);
   return { success: true, position: "end" };
 };
 
@@ -336,12 +334,15 @@ export const replaceImageInPlace = (
   childIndex: number,
   mermaidSource: string,
 ): { success: boolean } => {
-  const body = DocumentApp.getActiveDocument().getBody();
+  const doc = DocumentApp.getActiveDocument();
+  const body = doc.getBody();
   const blob = makeUniqueDiagramBlob(base64Data);
 
   const image = body.insertImage(childIndex, blob);
+  fitImageToPage(image, body);
   body.removeChild(body.getChild(childIndex + 1));
   if (mermaidSource) setMermaidAlt(image, mermaidSource);
+  selectBodyElement(doc, body, image);
   return { success: true };
 };
 
@@ -387,29 +388,43 @@ interface BatchResult {
 export const batchInsertDiagrams = (
   items: BatchDiagramItem[],
 ): BatchResult[] => {
-  const body = DocumentApp.getActiveDocument().getBody();
+  const doc = DocumentApp.getActiveDocument();
+  const body = doc.getBody();
   const results: BatchResult[] = [];
+  let selectedImage: GoogleAppsScript.Document.InlineImage | null = null;
+  let selectedIndex: number | null = null;
   for (const item of items) {
     try {
       const blob = makeBlob(item.base64, item.index);
+      const insertedIndex =
+        item.endIdx >= 0 ? item.endIdx + 1 : body.getNumChildren();
       const image =
         item.endIdx >= 0
-          ? body.insertImage(item.endIdx + 1, blob)
+          ? body.insertImage(insertedIndex, blob)
           : body.appendImage(blob);
+      fitImageToPage(image, body);
       if (item.definition) setMermaidAlt(image, item.definition);
+      if (selectedIndex === null || insertedIndex < selectedIndex) {
+        selectedIndex = insertedIndex;
+        selectedImage = image;
+      }
       results.push({ index: item.index, ok: true });
     } catch (e) {
       results.push({ index: item.index, ok: false, error: String(e) });
     }
   }
+  if (selectedImage) selectBodyElement(doc, body, selectedImage);
   return results;
 };
 
 export const batchReplaceDiagrams = (
   items: BatchDiagramItem[],
 ): BatchResult[] => {
-  const body = DocumentApp.getActiveDocument().getBody();
+  const doc = DocumentApp.getActiveDocument();
+  const body = doc.getBody();
   const results: BatchResult[] = [];
+  let selectedImage: GoogleAppsScript.Document.InlineImage | null = null;
+  let selectedIndex: number | null = null;
   for (const item of items) {
     try {
       if (item.startIdx < 0 || item.endIdx < 0) {
@@ -417,15 +432,21 @@ export const batchReplaceDiagrams = (
       }
       const blob = makeBlob(item.base64, item.index);
       const image = body.insertImage(item.startIdx, blob);
+      fitImageToPage(image, body);
       for (let i = item.endIdx + 1; i > item.startIdx; i--) {
         body.removeChild(body.getChild(i));
       }
       if (item.definition) setMermaidAlt(image, item.definition);
+      if (selectedIndex === null || item.startIdx < selectedIndex) {
+        selectedIndex = item.startIdx;
+        selectedImage = image;
+      }
       results.push({ index: item.index, ok: true });
     } catch (e) {
       results.push({ index: item.index, ok: false, error: String(e) });
     }
   }
+  if (selectedImage) selectBodyElement(doc, body, selectedImage);
   return results;
 };
 
@@ -491,7 +512,7 @@ export const openExportMarkdown = (): void => {
 export const getExportMarkdown = (): string => {
   const doc = DocumentApp.getActiveDocument();
   const { body } = getActiveBody(doc);
-  return exportDocAsMarkdown(body);
+  return timeServer("exportmd:build-markdown", () => exportDocAsMarkdown(body));
 };
 
 export const openFixMarkdown = (): void => {
@@ -522,14 +543,16 @@ export const showAbout = (): void => {
   DocumentApp.getUi().showModalDialog(html, "About");
 };
 
-export const openDocumentInfo = (): void => {
+const buildDocumentInfoData = (): { rows: [string, string][] } => {
   const doc = DocumentApp.getActiveDocument();
   const { body, tabId, isFirstTab } = getActiveBody(doc);
   const n = body.getNumChildren();
-  const images = findMermaidImages();
-  const snippets = findMermaidSnippets();
+  const images = timeServer("docinfo:scan-images", () => findMermaidImages());
+  const snippets = timeServer("docinfo:scan-snippets", () =>
+    findMermaidSnippets(),
+  );
 
-  const data = {
+  return {
     rows: [
       ["Document ID", doc.getId()],
       ["Name", doc.getName()],
@@ -540,29 +563,42 @@ export const openDocumentInfo = (): void => {
       ["URL", doc.getUrl()],
     ],
   };
+};
 
+export const getDocumentInfoData = (): { rows: [string, string][] } =>
+  timeServer("docinfo:build-data", () => buildDocumentInfoData());
+
+export const openDocumentInfo = (): void => {
   const template = HtmlService.createTemplateFromFile("DocInfo");
-  template.data = JSON.stringify(data);
+  template.data = "null";
   const html = template.evaluate().setWidth(500).setHeight(350);
   DocumentApp.getUi().showModalDialog(html, "Document Info");
 };
 
-export const debugDocStructure = (): void => {
+interface InspectorChildInfo {
+  idx: number;
+  type: string;
+  heading: string;
+  glyph: string;
+  nest: number;
+  text: string;
+  listId: string;
+  indent: string;
+}
+
+interface InspectorData {
+  numChildren: number;
+  tabId: string;
+  isFirstTab: boolean;
+  children: InspectorChildInfo[];
+}
+
+const buildInspectorData = (): InspectorData => {
   const doc = DocumentApp.getActiveDocument();
   const { body, tabId, isFirstTab } = getActiveBody(doc);
   const n = body.getNumChildren();
 
-  interface ChildInfo {
-    idx: number;
-    type: string;
-    heading: string;
-    glyph: string;
-    nest: number;
-    text: string;
-    listId: string;
-    indent: string;
-  }
-  const children: ChildInfo[] = [];
+  const children: InspectorChildInfo[] = [];
 
   // Collapse opaque list IDs to short stable labels (L1, L2, ...) so readers
   // can see which list items share a parent list at a glance without having
@@ -651,15 +687,20 @@ export const debugDocStructure = (): void => {
     });
   }
 
-  const data = {
+  return {
     numChildren: n,
     tabId,
     isFirstTab,
     children,
   };
+};
 
+export const getInspectorData = (): InspectorData =>
+  timeServer("inspector:build-data", () => buildInspectorData());
+
+export const debugDocStructure = (): void => {
   const template = HtmlService.createTemplateFromFile("Inspector");
-  template.data = JSON.stringify(data);
+  template.data = "null";
   const html = template.evaluate().setWidth(1100).setHeight(700);
   DocumentApp.getUi().showModalDialog(html, "Document Body Inspector");
 };
