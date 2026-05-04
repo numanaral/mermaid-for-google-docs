@@ -1016,6 +1016,11 @@
   resolved "https://registry.yarnpkg.com/@types/google-apps-script/-/google-apps-script-2.0.8.tgz#65f5ecdd9c64daaad283f027b0cf57abc9a8604c"
   integrity sha512-mGPmzzdgBu1DlwrjOhFQ8u0se6AF/z4OpaTzOGwNKxwXZjE7J+IssfE3oL24j/S/p6aFiSTIptHZvbyqeZD8vA==
 
+"@types/google.script.client-side@^0.1.5":
+  version "0.1.5"
+  resolved "https://registry.yarnpkg.com/@types/google.script.client-side/-/google.script.client-side-0.1.5.tgz#93e4ecb023df5eb8158b9a29f30d43d7bb928e85"
+  integrity sha512-GCQUVOtRTm13ieBw64AlxRhNAZqK0T1ttFRGqCB80tdlvE72oXlPckYJjJaEeaNCAZJHVkvjOeXMkmKXaQ7ffw==
+
 "@types/json-schema@^7.0.15":
   version "7.0.15"
   resolved "https://registry.yarnpkg.com/@types/json-schema/-/json-schema-7.0.15.tgz#596a1747233694d50f6ad8a7869fcb6f56cf5841"

@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.dialogs.json",
+  "include": [
+    "**/*.ts",
+    "../shared/**/*.ts"
+  ]
+}
