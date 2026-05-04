@@ -1,18 +1,24 @@
 import { loadScript } from "../../shared/scripts/load-script";
 import { svgToPngBase64 } from "../../shared/scripts/svg-to-png";
 import { escapeHtml } from "../../shared/scripts/escape-html";
-import {
-  MERMAID_CDN_URL,
-  MERMAID_CONFIG,
-} from "../../shared/scripts/mermaid-init";
+import { loadMermaid } from "../../shared/scripts/mermaid-loader";
 import { wrapImgWithFullscreen } from "../../shared/scripts/fullscreen";
 import { setBtnLoading } from "../../shared/scripts/card-helpers";
+import { timeAsync } from "../../shared/scripts/perf";
+import { yieldToUi } from "../../shared/scripts/render-queue";
+import { bindLineNumbers } from "../../shared/scripts/code-editor";
+import { showWarningToast } from "../../shared/scripts/toast";
+import type { DialogToast } from "../../shared/scripts/toast";
+import {
+  LARGE_DOCUMENT_PERFORMANCE_MESSAGE,
+  MARKED_CDN_URL,
+} from "../../shared/scripts/constants";
+import { composeLargeDocumentPerformanceUrl } from "../../shared/scripts/url-utils";
 
-const MARKED_CDN_URL =
-  "https://cdn.jsdelivr.net/npm/marked@17/lib/marked.umd.js";
+const PERFORMANCE_LIMITATION_URL =
+  composeLargeDocumentPerformanceUrl("importmd");
 
 declare const mermaid: {
-  initialize(config: unknown): void;
   render(id: string, src: string): Promise<{ svg: string }>;
 };
 
@@ -86,6 +92,7 @@ interface ImportListItem {
 }
 
 const sourceEl = document.getElementById("source") as HTMLTextAreaElement;
+const refreshSourceLineNumbers = bindLineNumbers(sourceEl);
 const previewEl = document.getElementById("preview-area")!;
 const statusEl = document.getElementById("status")!;
 const insertBtn = document.getElementById("insert-btn") as HTMLButtonElement;
@@ -110,11 +117,15 @@ const updateImportNotice = (
   codeblockNoticeItem.style.display = hasCodeblock ? "" : "none";
 };
 
+let markedReady = false;
 let mermaidReady = false;
+let mermaidLoadError = "";
 let renderTimer: ReturnType<typeof setTimeout> | null = null;
 let parsedTokens: Token[] = [];
 let mermaidImages: Map<number, string> = new Map();
 let renderCounter = 0;
+let activePreviewRun = 0;
+let slowImportToast: DialogToast | null = null;
 
 const inlineToSegments = (
   tokens: Token[],
@@ -409,7 +420,17 @@ const hasNonMermaidCodeBlock = (tokens: Token[] | undefined): boolean => {
   return false;
 };
 
+const getMermaidTokenIndexes = (tokens: Token[]): number[] => {
+  const indexes: number[] = [];
+  for (let idx = 0; idx < tokens.length; idx++) {
+    const token = tokens[idx];
+    if (token.type === "code" && token.lang === "mermaid") indexes.push(idx);
+  }
+  return indexes;
+};
+
 const renderPreview = async (): Promise<void> => {
+  const runId = ++activePreviewRun;
   const md = sourceEl.value;
   if (!md.trim()) {
     previewEl.innerHTML =
@@ -426,15 +447,19 @@ const renderPreview = async (): Promise<void> => {
     return;
   }
 
-  if (typeof marked === "undefined" || !marked.lexer) {
+  if (!markedReady || typeof marked === "undefined" || !marked.lexer) {
     statusEl.innerHTML =
-      '<span class="spinner-inline"></span> Waiting for libraries to load...';
+      '<span class="spinner-inline"></span> Loading markdown parser...';
     insertBtn.disabled = true;
     replaceBtn.disabled = true;
+    setBtnLoading(insertBtn, false);
+    setBtnLoading(replaceBtn, false);
     return;
   }
 
-  parsedTokens = marked.lexer(md);
+  parsedTokens = await timeAsync("importmd:marked-lexer", async () =>
+    marked.lexer(md),
+  );
   mermaidImages = new Map();
 
   // Non-mermaid fenced code blocks get rendered server-side as single-cell
@@ -447,29 +472,63 @@ const renderPreview = async (): Promise<void> => {
 
   const htmlParts: string[] = [];
 
-  for (let idx = 0; idx < parsedTokens.length; idx++) {
-    htmlParts.push(renderTokenToHtml(parsedTokens[idx], idx));
-  }
+  await timeAsync("importmd:build-preview-html", async () => {
+    for (let idx = 0; idx < parsedTokens.length; idx++) {
+      htmlParts.push(renderTokenToHtml(parsedTokens[idx], idx));
+    }
+  });
 
   previewEl.innerHTML = `<div class="md-preview">${htmlParts.join("")}</div>`;
   insertBtn.disabled = true;
   replaceBtn.disabled = true;
+  setBtnLoading(insertBtn, false);
+  setBtnLoading(replaceBtn, false);
 
-  if (mermaidReady) {
-    setBtnLoading(insertBtn, true);
-    setBtnLoading(replaceBtn, true);
+  const mermaidIndexes = getMermaidTokenIndexes(parsedTokens);
+  if (mermaidIndexes.length === 0) {
+    statusEl.textContent = "Preview ready. No mermaid diagrams found.";
+    insertBtn.disabled = false;
+    replaceBtn.disabled = false;
+    return;
+  }
+
+  if (!mermaidReady) {
+    if (mermaidLoadError) {
+      for (const idx of mermaidIndexes) {
+        const slot = document.getElementById(`mermaid-slot-${idx}`);
+        if (slot) {
+          slot.innerHTML =
+            '<div class="mermaid-error">Diagram preview unavailable; this block will import as code.</div>';
+        }
+      }
+      statusEl.textContent = mermaidLoadError;
+      insertBtn.disabled = false;
+      replaceBtn.disabled = false;
+      return;
+    }
     statusEl.innerHTML =
-      '<span class="spinner-inline"></span> Rendering mermaid diagrams...';
-    let diagramCount = 0;
-    let renderedCount = 0;
+      '<span class="spinner-inline"></span> Preview ready. Loading mermaid diagrams...';
+    return;
+  }
 
-    for (let idx = 0; idx < parsedTokens.length; idx++) {
+  setBtnLoading(insertBtn, true);
+  setBtnLoading(replaceBtn, true);
+  statusEl.innerHTML =
+    '<span class="spinner-inline"></span> Rendering mermaid diagrams...';
+  let renderedCount = 0;
+
+  await timeAsync("importmd:render-mermaid-diagrams", async () => {
+    for (let i = 0; i < mermaidIndexes.length; i++) {
+      if (runId !== activePreviewRun) return;
+      const idx = mermaidIndexes[i];
       const token = parsedTokens[idx];
-      if (token.type !== "code" || token.lang !== "mermaid") continue;
-      diagramCount++;
 
       const slot = document.getElementById(`mermaid-slot-${idx}`);
       if (!slot) continue;
+
+      statusEl.innerHTML =
+        '<span class="spinner-inline"></span>' +
+        `Rendering diagram ${i + 1} of ${mermaidIndexes.length}...`;
 
       renderCounter++;
       const renderId = "import-svg-" + renderCounter;
@@ -477,6 +536,7 @@ const renderPreview = async (): Promise<void> => {
       try {
         const result = await mermaid.render(renderId, token.text ?? "");
         const base64 = await svgToPngBase64(result.svg);
+        if (runId !== activePreviewRun) return;
         if (base64) {
           mermaidImages.set(idx, base64);
           slot.innerHTML = `<img src="data:image/png;base64,${base64}" />`;
@@ -494,15 +554,13 @@ const renderPreview = async (): Promise<void> => {
 
       const leftover = document.getElementById("d" + renderId);
       if (leftover) leftover.remove();
+      await yieldToUi();
     }
+  });
 
-    statusEl.textContent =
-      diagramCount > 0
-        ? `Rendered ${renderedCount}/${diagramCount} diagram${diagramCount > 1 ? "s" : ""}. Ready to import.`
-        : "Preview ready. No mermaid diagrams found.";
-  } else {
-    statusEl.textContent = "Preview ready (mermaid still loading).";
-  }
+  if (runId !== activePreviewRun) return;
+
+  statusEl.textContent = `Rendered ${renderedCount}/${mermaidIndexes.length} diagram${mermaidIndexes.length > 1 ? "s" : ""}. Ready to import.`;
 
   insertBtn.disabled = false;
   replaceBtn.disabled = false;
@@ -523,6 +581,20 @@ const scheduleRender = (): void => {
 
 sourceEl.addEventListener("input", scheduleRender);
 
+const showSlowImportNotice = (): number =>
+  window.setTimeout(() => {
+    slowImportToast = showWarningToast({
+      title: "Still working...",
+      message: LARGE_DOCUMENT_PERFORMANCE_MESSAGE,
+      linkHref: PERFORMANCE_LIMITATION_URL,
+    });
+  }, 5000);
+
+const hideSlowImportNotice = (): void => {
+  slowImportToast?.hide();
+  slowImportToast = null;
+};
+
 const buildImportPayload = (): ImportElement[] => {
   const elements: ImportElement[] = [];
   for (let idx = 0; idx < parsedTokens.length; idx++) {
@@ -540,20 +612,34 @@ insertBtn.addEventListener("click", () => {
   insertBtn.innerHTML = '<span class="spinner-inline"></span>Importing...';
   replaceBtn.disabled = true;
   statusEl.textContent = "Importing markdown into document...";
+  hideSlowImportNotice();
+  const slowNoticeTimer = showSlowImportNotice();
 
-  google.script.run
-    .withSuccessHandler(() => {
+  void timeAsync(
+    "importmd:server-insert-roundtrip",
+    () =>
+      new Promise<void>((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(() => resolve())
+          .withFailureHandler(reject)
+          .importMarkdownAtCursor(JSON.stringify(payload));
+      }),
+  )
+    .then(() => {
+      window.clearTimeout(slowNoticeTimer);
+      hideSlowImportNotice();
       google.script.host.close();
     })
-    .withFailureHandler((err: Error) => {
+    .catch((err: Error) => {
+      window.clearTimeout(slowNoticeTimer);
+      hideSlowImportNotice();
       insertBtn.textContent = "Insert into Document";
       insertBtn.classList.remove("done", "failed");
       insertBtn.className = "btn btn-filled-primary";
       insertBtn.disabled = false;
       replaceBtn.disabled = false;
       statusEl.textContent = "Error: " + err;
-    })
-    .importMarkdownAtCursor(JSON.stringify(payload));
+    });
 });
 
 replaceBtn.addEventListener("click", () => {
@@ -564,19 +650,33 @@ replaceBtn.addEventListener("click", () => {
   replaceBtn.innerHTML = '<span class="spinner-inline"></span>Replacing...';
   insertBtn.disabled = true;
   statusEl.textContent = "Replacing document content...";
+  hideSlowImportNotice();
+  const slowNoticeTimer = showSlowImportNotice();
 
-  google.script.run
-    .withSuccessHandler(() => {
+  void timeAsync(
+    "importmd:server-replace-roundtrip",
+    () =>
+      new Promise<void>((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(() => resolve())
+          .withFailureHandler(reject)
+          .importMarkdownReplace(JSON.stringify(payload));
+      }),
+  )
+    .then(() => {
+      window.clearTimeout(slowNoticeTimer);
+      hideSlowImportNotice();
       google.script.host.close();
     })
-    .withFailureHandler((err: Error) => {
+    .catch((err: Error) => {
+      window.clearTimeout(slowNoticeTimer);
+      hideSlowImportNotice();
       replaceBtn.textContent = "Replace Document";
       replaceBtn.className = "btn btn-filled-secondary";
       replaceBtn.disabled = false;
       insertBtn.disabled = false;
       statusEl.textContent = "Error: " + err;
-    })
-    .importMarkdownReplace(JSON.stringify(payload));
+    });
 });
 
 const pasteBtn = document.getElementById("pasteBtn")!;
@@ -585,6 +685,7 @@ pasteBtn.addEventListener("click", async () => {
     const text = await navigator.clipboard.readText();
     if (text && text.trim()) {
       sourceEl.value = text;
+      refreshSourceLineNumbers();
       renderPreview();
       return;
     }
@@ -596,19 +697,32 @@ pasteBtn.addEventListener("click", async () => {
 });
 
 (async () => {
-  try {
-    await loadScript(MARKED_CDN_URL);
-    await loadScript(MERMAID_CDN_URL);
+  const mermaidPromise = loadMermaid()
+    .then(() => {
+      mermaidReady = true;
+      if (sourceEl.value.trim()) void renderPreview();
+    })
+    .catch((e: Error) => {
+      mermaidLoadError =
+        "Mermaid diagrams unavailable: " +
+        (e instanceof Error ? e.message : String(e));
+      statusEl.textContent = mermaidLoadError;
+      if (sourceEl.value.trim() && markedReady) void renderPreview();
+    });
 
-    mermaid.initialize(MERMAID_CONFIG);
-    mermaidReady = true;
+  try {
+    await loadScript(MARKED_CDN_URL, { label: "marked:script" });
+    markedReady = true;
     if (sourceEl.value.trim()) {
-      renderPreview();
+      await renderPreview();
     } else {
       statusEl.textContent = "Ready — paste markdown to preview.";
     }
-  } catch {
+  } catch (e) {
     statusEl.textContent =
-      "Failed to load libraries. Please reopen the dialog.";
+      "Failed to load markdown parser: " +
+      (e instanceof Error ? e.message : String(e));
   }
+
+  void mermaidPromise;
 })();

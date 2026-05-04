@@ -115,6 +115,33 @@ textarea {
   background: var(--bg);
 }
 
+.code-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--bg);
+}
+
+.code-line-numbers {
+  flex: 0 0 40px;
+  padding: 10px 8px;
+  border-right: 1px solid var(--outline-variant);
+  overflow: hidden;
+  text-align: right;
+  white-space: pre;
+  user-select: none;
+  font-family: "Roboto Mono", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--outline);
+  background: var(--surface-container);
+}
+
+.code-editor textarea {
+  min-width: 0;
+  padding-left: 12px;
+}
+
 .output-scroll {
   flex: 1;
   overflow: auto;

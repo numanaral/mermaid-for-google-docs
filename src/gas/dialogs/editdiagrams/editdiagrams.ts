@@ -1,10 +1,6 @@
-import { loadScript } from "../../shared/scripts/load-script";
 import { svgToPngBase64 } from "../../shared/scripts/svg-to-png";
 import { escapeHtml } from "../../shared/scripts/escape-html";
-import {
-  MERMAID_CDN_URL,
-  MERMAID_CONFIG,
-} from "../../shared/scripts/mermaid-init";
+import { loadMermaid } from "../../shared/scripts/mermaid-loader";
 import {
   markBtn,
   setLoading,
@@ -13,12 +9,14 @@ import {
 import { openDataUriInNewTab } from "../../shared/scripts/dom-utils";
 import { wrapImgWithFullscreen } from "../../shared/scripts/fullscreen";
 import { OPEN_SVG } from "../../shared/scripts/icons";
+import { timeAsync } from "../../shared/scripts/perf";
+import { mapWithConcurrency } from "../../shared/scripts/render-queue";
+import { bindCodeEditor } from "../../shared/scripts/code-editor";
 
 declare const mermaid: {
-  initialize(config: unknown): void;
   render(id: string, src: string): Promise<{ svg: string }>;
 };
-declare const imageInfos: Array<{ source: string; childIndex: number }>;
+declare const imageInfos: Array<{ source: string; childIndex: number }> | null;
 
 const cardsEl = document.getElementById("cards")!;
 const statusEl = document.getElementById("status")!;
@@ -27,6 +25,8 @@ const cardEls: HTMLElement[] = [];
 const sources: string[] = [];
 const renderedBase64s: Array<string | null> = [];
 const latestRenderIds: number[] = [];
+let activeImageInfos: NonNullable<typeof imageInfos> = imageInfos ?? [];
+let mermaidReady = false;
 let renderCounter = 0;
 let debounceTimers: Record<number, number> = {};
 
@@ -51,12 +51,12 @@ const invalidateCardRender = (index: number): void => {
 
 const buildCard = (
   index: number,
-  info: (typeof imageInfos)[0],
+  info: NonNullable<typeof imageInfos>[0],
   thumbBase64: string | null,
 ): void => {
   const card = document.createElement("div");
   card.className = "card";
-  cardEls.push(card);
+  cardEls[index] = card;
   sources[index] = info.source;
   renderedBase64s[index] = thumbBase64;
 
@@ -98,11 +98,14 @@ const buildCard = (
     '<div class="inline-panels">' +
     '<div class="inline-panel">' +
     '<div class="inline-panel-label">Source</div>' +
+    '<div class="code-editor">' +
+    '<div class="code-line-numbers" aria-hidden="true">1</div>' +
     '<textarea id="src-' +
     index +
     '" spellcheck="false">' +
     escapeHtml(info.source) +
     "</textarea>" +
+    "</div>" +
     "</div>" +
     '<div class="inline-panel">' +
     '<div class="inline-panel-label">Preview</div>' +
@@ -143,6 +146,7 @@ const buildCard = (
   const textarea = document.getElementById(
     "src-" + index,
   ) as HTMLTextAreaElement;
+  bindCodeEditor(textarea);
   textarea.addEventListener("input", () => {
     sources[index] = textarea.value;
     const saveBtn = document.getElementById(
@@ -170,6 +174,36 @@ const buildCard = (
 
   const pvInitImg = card.querySelector<HTMLImageElement>(".preview-scroll img");
   if (pvInitImg) wrapImgWithFullscreen(pvInitImg);
+};
+
+const setInitialThumb = (index: number, base64: string): void => {
+  renderedBase64s[index] = base64;
+  const src = "data:image/png;base64," + base64;
+  const row = cardEls[index]?.querySelector(".card-row");
+  const spacer = row?.querySelector(".card-spacer");
+  const pvEl = document.getElementById("pv-" + index);
+  if (row && spacer && !row.querySelector(".thumb-hover")) {
+    const thumbEl = document.createElement("div");
+    thumbEl.className = "thumb-hover";
+    thumbEl.setAttribute("data-src", src);
+    thumbEl.innerHTML =
+      '<img class="card-thumb" src="' +
+      src +
+      '" />' +
+      '<div class="open-badge">' +
+      OPEN_SVG +
+      "</div>";
+    thumbEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openDataUriInNewTab(src);
+    });
+    row.insertBefore(thumbEl, spacer);
+  }
+  if (pvEl && !cardEls[index]?.classList.contains("expanded")) {
+    pvEl.innerHTML = '<img src="' + src + '" />';
+    const img = pvEl.querySelector("img");
+    if (img) wrapImgWithFullscreen(img);
+  }
 };
 
 const toggleEditor = (index: number): void => {
@@ -208,6 +242,13 @@ const renderPreview = async (index: number): Promise<void> => {
       '<span style="color:var(--outline)">Enter Mermaid code</span>';
     errEl.textContent = "";
     invalidateCardRender(index);
+    return;
+  }
+  if (!mermaidReady) {
+    pvEl.innerHTML =
+      '<span style="color:var(--outline)"><span class="spinner-inline"></span> Loading mermaid.js...</span>';
+    errEl.textContent = "";
+    setSaveEnabled(index, false);
     return;
   }
 
@@ -274,7 +315,7 @@ const doSave = (idx: number): void => {
       enableCard(idx);
       statusEl.textContent = "Error: " + err;
     })
-    .replaceImageInPlace(base64, imageInfos[idx].childIndex, newSource);
+    .replaceImageInPlace(base64, activeImageInfos[idx].childIndex, newSource);
 };
 
 const disableCard = (idx: number): void => {
@@ -298,47 +339,87 @@ const enableCard = (idx: number): void => {
   });
 };
 
+const fetchImageInfos = (): Promise<NonNullable<typeof imageInfos>> =>
+  timeAsync(
+    "editdiagrams:fetch-mermaid-images",
+    () =>
+      new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)
+          .getMermaidImagesForDialog();
+      }),
+  );
+
 (async () => {
+  if (!imageInfos) {
+    statusEl.innerHTML =
+      '<span class="spinner-inline" style="border-color:rgba(0,0,0,0.15);border-top-color:var(--text-muted)"></span>' +
+      "Scanning document for Mermaid diagrams...";
+    try {
+      activeImageInfos = await fetchImageInfos();
+    } catch (e) {
+      statusEl.textContent =
+        "Failed to scan document: " +
+        (e instanceof Error ? e.message : String(e));
+      return;
+    }
+  }
+
+  if (activeImageInfos.length === 0) {
+    statusEl.textContent =
+      "No Mermaid diagrams found. Only diagrams inserted by this add-on contain embedded Mermaid source.";
+    return;
+  }
+
+  for (let i = 0; i < activeImageInfos.length; i++) {
+    buildCard(i, activeImageInfos[i], null);
+  }
+  statusEl.textContent =
+    activeImageInfos.length + " diagram(s) found. Loading previews...";
+
   try {
-    await loadScript(MERMAID_CDN_URL);
+    await loadMermaid();
+    mermaidReady = true;
   } catch {
     statusEl.textContent = "Failed to load mermaid.js.";
     return;
   }
 
-  mermaid.initialize(MERMAID_CONFIG);
-
   statusEl.innerHTML =
     '<span class="spinner-inline" style="border-color:rgba(0,0,0,0.15);border-top-color:var(--text-muted)"></span>' +
     "Rendering " +
-    imageInfos.length +
+    activeImageInfos.length +
     " preview(s)...";
 
-  for (let i = 0; i < imageInfos.length; i++) {
+  await mapWithConcurrency(activeImageInfos, 2, async (info, i) => {
     statusEl.innerHTML =
       '<span class="spinner-inline" style="border-color:rgba(0,0,0,0.15);border-top-color:var(--text-muted)"></span>' +
       "Rendering preview " +
       (i + 1) +
       " of " +
-      imageInfos.length +
+      activeImageInfos.length +
       "...";
 
     let thumbBase64: string | null = null;
 
     try {
-      const rendered = await mermaid.render(
-        "edit-svg-" + i,
-        imageInfos[i].source,
+      const rendered = await timeAsync(`editdiagrams:mermaid-render:${i}`, () =>
+        mermaid.render("edit-svg-" + i, info.source),
       );
-      const base64 = await svgToPngBase64(rendered.svg);
+      const base64 = await timeAsync(`editdiagrams:svg-to-png:${i}`, () =>
+        svgToPngBase64(rendered.svg),
+      );
       if (base64) thumbBase64 = base64;
     } catch {
       // thumbnail not available
     }
 
-    buildCard(i, imageInfos[i], thumbBase64);
-  }
+    if (thumbBase64 && sources[i] === info.source) {
+      setInitialThumb(i, thumbBase64);
+    }
+  });
 
   statusEl.textContent =
-    imageInfos.length + " diagram(s) found. Click a card to edit.";
+    activeImageInfos.length + " diagram(s) found. Click a card to edit.";
 })();

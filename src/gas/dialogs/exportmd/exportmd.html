@@ -16,7 +16,10 @@
       <p>Exporting document as markdown...</p>
       <p class="loading-hint">This may take a moment for large documents.</p>
     </div>
-    <textarea id="output" spellcheck="false" readonly style="display:none"></textarea>
+    <div id="output-wrap" class="code-editor" style="display:none">
+      <div class="code-line-numbers" aria-hidden="true">1</div>
+      <textarea id="output" spellcheck="false" readonly></textarea>
+    </div>
   </div>
 
   <div id="checkbox-notice" class="notice" style="display:none">

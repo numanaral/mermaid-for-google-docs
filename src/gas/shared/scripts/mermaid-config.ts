@@ -1,6 +1,3 @@
-export const MERMAID_CDN_URL =
-  "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
-
 export const MERMAID_CONFIG = {
   startOnLoad: false,
   theme: "default" as const,

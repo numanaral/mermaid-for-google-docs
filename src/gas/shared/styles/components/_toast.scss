@@ -1,0 +1,67 @@
+.dialog-toast-host {
+  position: fixed;
+  top: 58px;
+  right: 16px;
+  z-index: 10000;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.dialog-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border-radius: 14px;
+  box-shadow: var(--elevation-3);
+  font-size: 13px;
+  line-height: 1.45;
+  pointer-events: auto;
+}
+
+.dialog-toast-warn {
+  color: #3c2f00;
+  background: #fef7e0;
+  border: 1px solid #f9ab00;
+  border-left-width: 4px;
+}
+
+.dialog-toast-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.dialog-toast-title {
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+
+.dialog-toast-message {
+  color: inherit;
+
+  a {
+    color: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+}
+
+.dialog-toast-close {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  color: inherit;
+  background: rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 22px;
+}
+
+.dialog-toast-close:hover {
+  background: rgba(0, 0, 0, 0.14);
+}

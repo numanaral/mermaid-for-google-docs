@@ -2,6 +2,7 @@
 @use "../../shared/styles/base/reset";
 @use "../../shared/styles/components/buttons";
 @use "../../shared/styles/components/spinner";
+@use "../../shared/styles/components/toast";
 
 body {
   display: flex;
@@ -64,6 +65,33 @@ textarea {
   color: var(--on-surface);
   background: var(--bg);
   cursor: default;
+}
+
+.code-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--bg);
+}
+
+.code-line-numbers {
+  flex: 0 0 40px;
+  padding: 12px 8px;
+  border-right: 1px solid var(--outline-variant);
+  overflow: hidden;
+  text-align: right;
+  white-space: pre;
+  user-select: none;
+  font-family: "Roboto Mono", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--outline);
+  background: var(--surface-container);
+}
+
+.code-editor textarea {
+  min-width: 0;
+  padding-left: 12px;
 }
 
 .notice {

@@ -1,10 +1,6 @@
-import { loadScript } from "../../shared/scripts/load-script";
 import { svgToPngBase64 } from "../../shared/scripts/svg-to-png";
 import { escapeHtml } from "../../shared/scripts/escape-html";
-import {
-  MERMAID_CDN_URL,
-  MERMAID_CONFIG,
-} from "../../shared/scripts/mermaid-init";
+import { loadMermaid } from "../../shared/scripts/mermaid-loader";
 import {
   markBtn,
   setLoading,
@@ -12,16 +8,24 @@ import {
 } from "../../shared/scripts/card-helpers";
 import { openDataUriInNewTab } from "../../shared/scripts/dom-utils";
 import { OPEN_SVG } from "../../shared/scripts/icons";
+import { timeAsync } from "../../shared/scripts/perf";
+import { mapWithConcurrency } from "../../shared/scripts/render-queue";
+import { showWarningToast } from "../../shared/scripts/toast";
+import type { DialogToast } from "../../shared/scripts/toast";
+import { LARGE_DOCUMENT_PERFORMANCE_MESSAGE } from "../../shared/scripts/constants";
+import { composeLargeDocumentPerformanceUrl } from "../../shared/scripts/url-utils";
+
+const PERFORMANCE_LIMITATION_URL =
+  composeLargeDocumentPerformanceUrl("preview");
 
 declare const mermaid: {
-  initialize(config: unknown): void;
   render(id: string, src: string): Promise<{ svg: string }>;
 };
 declare const blockInfos: Array<{
   definition: string;
   startIdx: number;
   endIdx: number;
-}>;
+}> | null;
 
 interface RenderResult {
   definition: string;
@@ -42,11 +46,27 @@ const replaceAllB = document.getElementById(
 
 const results: RenderResult[] = [];
 const cardEls: HTMLElement[] = [];
+let slowBatchToast: DialogToast | null = null;
+
+const showSlowBatchNotice = (title: string): number =>
+  window.setTimeout(() => {
+    slowBatchToast = showWarningToast({
+      title,
+      message: LARGE_DOCUMENT_PERFORMANCE_MESSAGE,
+      linkHref: PERFORMANCE_LIMITATION_URL,
+    });
+  }, 5000);
+
+const hideSlowBatchNotice = (): void => {
+  slowBatchToast?.hide();
+  slowBatchToast = null;
+};
 
 const buildCard = (index: number, result: RenderResult): void => {
   const card = document.createElement("div");
   card.className = "card";
-  cardEls.push(card);
+  const existingCard = cardEls[index];
+  cardEls[index] = card;
 
   const thumbSrc = result.base64
     ? "data:image/png;base64," + result.base64
@@ -83,8 +103,11 @@ const buildCard = (index: number, result: RenderResult): void => {
       '<button class="btn btn-filled-secondary" id="rep-' +
       index +
       '">Replace</button>';
-  } else {
+  } else if (result.error) {
     rowHtml += '<span class="card-status failed">Error</span>';
+  } else {
+    rowHtml +=
+      '<span class="card-status"><span class="spinner-inline"></span>Rendering...</span>';
   }
 
   rowHtml += "</div></div>";
@@ -97,7 +120,8 @@ const buildCard = (index: number, result: RenderResult): void => {
     "</pre></div>";
 
   card.innerHTML = rowHtml + sourceHtml;
-  cardsEl.appendChild(card);
+  if (existingCard) existingCard.replaceWith(card);
+  else cardsEl.appendChild(card);
 
   const row = card.querySelector(".card-row")!;
   row.addEventListener("click", (e) => {
@@ -279,6 +303,10 @@ const doBatchDiagrams = (action: "insert" | "replace"): void => {
     " " +
     queue.length +
     " diagram(s)...";
+  hideSlowBatchNotice();
+  const slowNoticeTimer = showSlowBatchNotice(
+    isReplace ? "Still converting..." : "Still inserting...",
+  );
 
   for (const idx of queue) disableCard(idx);
 
@@ -292,6 +320,8 @@ const doBatchDiagrams = (action: "insert" | "replace"): void => {
 
   google.script.run
     .withSuccessHandler((batchResults: BatchResult[]) => {
+      window.clearTimeout(slowNoticeTimer);
+      hideSlowBatchNotice();
       let okCount = 0;
       let errCount = 0;
       for (const r of batchResults) {
@@ -330,6 +360,8 @@ const doBatchDiagrams = (action: "insert" | "replace"): void => {
       }
     })
     .withFailureHandler((err: Error) => {
+      window.clearTimeout(slowNoticeTimer);
+      hideSlowBatchNotice();
       statusEl.textContent = "Batch error: " + err;
       for (const idx of queue) enableCard(idx);
       insertAllB.disabled = false;
@@ -342,38 +374,89 @@ const doBatchDiagrams = (action: "insert" | "replace"): void => {
 insertAllB.addEventListener("click", () => doBatchDiagrams("insert"));
 replaceAllB.addEventListener("click", () => doBatchDiagrams("replace"));
 
+const fetchBlockInfos = (): Promise<NonNullable<typeof blockInfos>> =>
+  timeAsync(
+    "preview:fetch-mermaid-snippets",
+    () =>
+      new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)
+          .getMermaidSnippetsForPreview();
+      }),
+  );
+
 (async () => {
+  let blocks = blockInfos;
+  setBtnLoading(insertAllB, true);
+  setBtnLoading(replaceAllB, true);
+  if (!blocks) {
+    statusEl.innerHTML =
+      '<span class="spinner-inline" style="border-color:rgba(0,0,0,0.15);border-top-color:var(--text-muted)"></span>' +
+      "Scanning document for Mermaid code blocks...";
+    try {
+      blocks = await fetchBlockInfos();
+    } catch (e) {
+      statusEl.textContent =
+        "Failed to scan document: " +
+        (e instanceof Error ? e.message : String(e));
+      setBtnLoading(insertAllB, false);
+      setBtnLoading(replaceAllB, false);
+      return;
+    }
+  }
+
+  if (blocks.length === 0) {
+    statusEl.textContent =
+      "No mermaid code blocks found. Add Mermaid code blocks or ```mermaid fences, then try again.";
+    setBtnLoading(insertAllB, false);
+    setBtnLoading(replaceAllB, false);
+    return;
+  }
+
+  for (let i = 0; i < blocks.length; i++) {
+    results[i] = {
+      definition: blocks[i].definition,
+      startIdx: blocks[i].startIdx,
+      endIdx: blocks[i].endIdx,
+      base64: null,
+      error: null,
+    };
+    buildCard(i, results[i]);
+  }
+
   try {
-    await loadScript(MERMAID_CDN_URL);
+    await loadMermaid();
   } catch (e) {
     statusEl.textContent =
       "Failed to load mermaid.js: " +
       (e instanceof Error ? e.message : String(e));
+    for (let i = 0; i < results.length; i++) {
+      results[i].error = "Failed to load mermaid.js.";
+      buildCard(i, results[i]);
+    }
+    setBtnLoading(insertAllB, false);
+    setBtnLoading(replaceAllB, false);
     return;
   }
 
-  mermaid.initialize(MERMAID_CONFIG);
-
-  setBtnLoading(insertAllB, true);
-  setBtnLoading(replaceAllB, true);
   statusEl.innerHTML =
     '<span class="spinner-inline" style="border-color:rgba(0,0,0,0.15);border-top-color:var(--text-muted)"></span>' +
     "Rendering " +
-    blockInfos.length +
+    blocks.length +
     " diagram(s)...";
 
   let successCount = 0;
 
-  for (let i = 0; i < blockInfos.length; i++) {
+  await mapWithConcurrency(blocks, 2, async (info, i) => {
     statusEl.innerHTML =
       '<span class="spinner-inline" style="border-color:rgba(0,0,0,0.15);border-top-color:var(--text-muted)"></span>' +
       "Rendering diagram " +
       (i + 1) +
       " of " +
-      blockInfos.length +
+      blocks.length +
       "...";
 
-    const info = blockInfos[i];
     const result: RenderResult = {
       definition: info.definition,
       startIdx: info.startIdx,
@@ -383,11 +466,12 @@ replaceAllB.addEventListener("click", () => doBatchDiagrams("replace"));
     };
 
     try {
-      const rendered = await mermaid.render(
-        "mermaid-svg-" + i,
-        info.definition,
+      const rendered = await timeAsync(`preview:mermaid-render:${i}`, () =>
+        mermaid.render("mermaid-svg-" + i, info.definition),
       );
-      const base64 = await svgToPngBase64(rendered.svg);
+      const base64 = await timeAsync(`preview:svg-to-png:${i}`, () =>
+        svgToPngBase64(rendered.svg),
+      );
       if (base64) {
         result.base64 = base64;
         successCount++;
@@ -398,14 +482,14 @@ replaceAllB.addEventListener("click", () => doBatchDiagrams("replace"));
       result.error = e instanceof Error ? e.message : String(e);
     }
 
-    results.push(result);
+    results[i] = result;
     buildCard(i, result);
-  }
+  });
 
   statusEl.textContent =
     successCount +
     " of " +
-    blockInfos.length +
+    blocks.length +
     " diagram(s) rendered. Choose an action.";
 
   setBtnLoading(insertAllB, false);

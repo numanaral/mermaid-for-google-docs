@@ -1,10 +1,6 @@
-import { loadScript } from "../../shared/scripts/load-script";
 import { svgToPngBase64 } from "../../shared/scripts/svg-to-png";
 import { escapeHtml } from "../../shared/scripts/escape-html";
-import {
-  MERMAID_CDN_URL,
-  MERMAID_CONFIG,
-} from "../../shared/scripts/mermaid-init";
+import { loadMermaid } from "../../shared/scripts/mermaid-loader";
 import {
   markBtn,
   setLoading,
@@ -12,12 +8,20 @@ import {
 } from "../../shared/scripts/card-helpers";
 import { openDataUriInNewTab } from "../../shared/scripts/dom-utils";
 import { OPEN_SVG } from "../../shared/scripts/icons";
+import { timeAsync } from "../../shared/scripts/perf";
+import { mapWithConcurrency } from "../../shared/scripts/render-queue";
+import { showWarningToast } from "../../shared/scripts/toast";
+import type { DialogToast } from "../../shared/scripts/toast";
+import { LARGE_DOCUMENT_PERFORMANCE_MESSAGE } from "../../shared/scripts/constants";
+import { composeLargeDocumentPerformanceUrl } from "../../shared/scripts/url-utils";
+
+const PERFORMANCE_LIMITATION_URL =
+  composeLargeDocumentPerformanceUrl("extract");
 
 declare const mermaid: {
-  initialize(config: unknown): void;
   render(id: string, src: string): Promise<{ svg: string }>;
 };
-declare const imageInfos: Array<{ source: string; childIndex: number }>;
+declare const imageInfos: Array<{ source: string; childIndex: number }> | null;
 
 const cardsEl = document.getElementById("cards")!;
 const statusEl = document.getElementById("status")!;
@@ -30,16 +34,32 @@ const replaceAllB = document.getElementById(
 
 const cardEls: HTMLElement[] = [];
 const thumbs: (string | null)[] = [];
+let activeImageInfos: NonNullable<typeof imageInfos> = imageInfos ?? [];
+let slowBatchToast: DialogToast | null = null;
+
+const showSlowBatchNotice = (title: string): number =>
+  window.setTimeout(() => {
+    slowBatchToast = showWarningToast({
+      title,
+      message: LARGE_DOCUMENT_PERFORMANCE_MESSAGE,
+      linkHref: PERFORMANCE_LIMITATION_URL,
+    });
+  }, 5000);
+
+const hideSlowBatchNotice = (): void => {
+  slowBatchToast?.hide();
+  slowBatchToast = null;
+};
 
 const buildCard = (
   index: number,
-  info: (typeof imageInfos)[0],
+  info: NonNullable<typeof imageInfos>[0],
   thumbBase64: string | null,
 ): void => {
   const card = document.createElement("div");
   card.className = "card";
-  cardEls.push(card);
-  thumbs.push(thumbBase64);
+  cardEls[index] = card;
+  thumbs[index] = thumbBase64;
 
   const thumbSrc = thumbBase64 ? "data:image/png;base64," + thumbBase64 : "";
 
@@ -115,6 +135,31 @@ const buildCard = (
   });
 };
 
+const setCardThumb = (index: number, thumbBase64: string | null): void => {
+  thumbs[index] = thumbBase64;
+  if (!thumbBase64) return;
+  const row = cardEls[index]?.querySelector(".card-row");
+  const spacer = row?.querySelector(".card-spacer");
+  if (!row || !spacer || row.querySelector(".thumb-hover")) return;
+
+  const thumbEl = document.createElement("div");
+  thumbEl.className = "thumb-hover";
+  const src = "data:image/png;base64," + thumbBase64;
+  thumbEl.setAttribute("data-src", src);
+  thumbEl.innerHTML =
+    '<img class="card-thumb" src="' +
+    src +
+    '" />' +
+    '<div class="open-badge">' +
+    OPEN_SVG +
+    "</div>";
+  thumbEl.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openDataUriInNewTab(src);
+  });
+  row.insertBefore(thumbEl, spacer);
+};
+
 const doInsert = (idx: number): void => {
   const btn = document.getElementById("ins-" + idx) as HTMLButtonElement;
   setLoading(btn, "Inserting...");
@@ -136,8 +181,8 @@ const doInsert = (idx: number): void => {
       statusEl.textContent = "Error: " + err;
     })
     .insertCodeBlockAfterImage(
-      imageInfos[idx].source,
-      imageInfos[idx].childIndex,
+      activeImageInfos[idx].source,
+      activeImageInfos[idx].childIndex,
     );
 };
 
@@ -169,8 +214,8 @@ const doReplace = (idx: number): void => {
       statusEl.textContent = "Error: " + err;
     })
     .replaceImageWithCodeBlock(
-      imageInfos[idx].source,
-      imageInfos[idx].childIndex,
+      activeImageInfos[idx].source,
+      activeImageInfos[idx].childIndex,
     );
 };
 
@@ -223,7 +268,7 @@ const doBatchCodeBlocks = (action: "insert" | "replace"): void => {
     : "batchInsertCodeBlocks";
 
   const queue: number[] = [];
-  for (let i = 0; i < imageInfos.length; i++) {
+  for (let i = 0; i < activeImageInfos.length; i++) {
     const btn = document.getElementById(
       btnPrefix + i,
     ) as HTMLButtonElement | null;
@@ -239,7 +284,9 @@ const doBatchCodeBlocks = (action: "insert" | "replace"): void => {
     return;
   }
 
-  queue.sort((a, b) => imageInfos[b].childIndex - imageInfos[a].childIndex);
+  queue.sort(
+    (a, b) => activeImageInfos[b].childIndex - activeImageInfos[a].childIndex,
+  );
 
   insertAllB.disabled = true;
   replaceAllB.disabled = true;
@@ -253,17 +300,23 @@ const doBatchCodeBlocks = (action: "insert" | "replace"): void => {
     " " +
     queue.length +
     " diagram(s)...";
+  hideSlowBatchNotice();
+  const slowNoticeTimer = showSlowBatchNotice(
+    isReplace ? "Still converting..." : "Still inserting...",
+  );
 
   for (const idx of queue) disableCard(idx);
 
   const items = queue.map((idx) => ({
-    source: imageInfos[idx].source,
-    childIndex: imageInfos[idx].childIndex,
+    source: activeImageInfos[idx].source,
+    childIndex: activeImageInfos[idx].childIndex,
     index: idx,
   }));
 
   google.script.run
     .withSuccessHandler((batchResults: BatchResult[]) => {
+      window.clearTimeout(slowNoticeTimer);
+      hideSlowBatchNotice();
       let okCount = 0;
       let errCount = 0;
       for (const r of batchResults) {
@@ -302,6 +355,8 @@ const doBatchCodeBlocks = (action: "insert" | "replace"): void => {
       }
     })
     .withFailureHandler((err: Error) => {
+      window.clearTimeout(slowNoticeTimer);
+      hideSlowBatchNotice();
       statusEl.textContent = "Batch error: " + err;
       for (const idx of queue) enableCard(idx);
       insertAllB.disabled = false;
@@ -314,46 +369,78 @@ const doBatchCodeBlocks = (action: "insert" | "replace"): void => {
 insertAllB.addEventListener("click", () => doBatchCodeBlocks("insert"));
 replaceAllB.addEventListener("click", () => doBatchCodeBlocks("replace"));
 
+const fetchImageInfos = (): Promise<NonNullable<typeof imageInfos>> =>
+  timeAsync(
+    "extract:fetch-mermaid-images",
+    () =>
+      new Promise((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)
+          .getMermaidImagesForDialog();
+      }),
+  );
+
 (async () => {
-  try {
-    await loadScript(MERMAID_CDN_URL);
-  } catch {
-    statusEl.textContent = "Previews unavailable (mermaid.js failed to load).";
-    for (let i = 0; i < imageInfos.length; i++) {
-      buildCard(i, imageInfos[i], null);
+  if (!imageInfos) {
+    statusEl.innerHTML =
+      '<span class="spinner-inline" style="border-color:rgba(0,0,0,0.15);border-top-color:var(--text-muted)"></span>' +
+      "Scanning document for Mermaid diagrams...";
+    try {
+      activeImageInfos = await fetchImageInfos();
+    } catch (e) {
+      statusEl.textContent =
+        "Failed to scan document: " +
+        (e instanceof Error ? e.message : String(e));
+      return;
     }
-    insertAllB.disabled = false;
-    replaceAllB.disabled = false;
+  }
+
+  if (activeImageInfos.length === 0) {
+    statusEl.textContent =
+      "No Mermaid diagrams found. Only diagrams inserted by this add-on contain embedded Mermaid source.";
     return;
   }
 
-  mermaid.initialize(MERMAID_CONFIG);
+  for (let i = 0; i < activeImageInfos.length; i++) {
+    buildCard(i, activeImageInfos[i], null);
+  }
+  insertAllB.disabled = false;
+  replaceAllB.disabled = false;
+
+  try {
+    await loadMermaid();
+  } catch {
+    statusEl.textContent = "Previews unavailable (mermaid.js failed to load).";
+    return;
+  }
 
   setBtnLoading(insertAllB, true);
   setBtnLoading(replaceAllB, true);
   statusEl.innerHTML =
     '<span class="spinner-inline" style="border-color:rgba(0,0,0,0.15);border-top-color:var(--text-muted)"></span>' +
     "Rendering " +
-    imageInfos.length +
+    activeImageInfos.length +
     " preview(s)...";
 
-  for (let i = 0; i < imageInfos.length; i++) {
+  await mapWithConcurrency(activeImageInfos, 2, async (info, i) => {
     statusEl.innerHTML =
       '<span class="spinner-inline" style="border-color:rgba(0,0,0,0.15);border-top-color:var(--text-muted)"></span>' +
       "Rendering preview " +
       (i + 1) +
       " of " +
-      imageInfos.length +
+      activeImageInfos.length +
       "...";
 
     let thumbBase64: string | null = null;
 
     try {
-      const rendered = await mermaid.render(
-        "extract-svg-" + i,
-        imageInfos[i].source,
+      const rendered = await timeAsync(`extract:mermaid-render:${i}`, () =>
+        mermaid.render("extract-svg-" + i, info.source),
       );
-      const base64 = await svgToPngBase64(rendered.svg);
+      const base64 = await timeAsync(`extract:svg-to-png:${i}`, () =>
+        svgToPngBase64(rendered.svg),
+      );
       if (base64) {
         thumbBase64 = base64;
       }
@@ -361,11 +448,11 @@ replaceAllB.addEventListener("click", () => doBatchCodeBlocks("replace"));
       // thumbnail not available, still show the card
     }
 
-    buildCard(i, imageInfos[i], thumbBase64);
-  }
+    setCardThumb(i, thumbBase64);
+  });
 
   statusEl.textContent =
-    imageInfos.length + " Mermaid diagram(s) found. Choose an action.";
+    activeImageInfos.length + " Mermaid diagram(s) found. Choose an action.";
   setBtnLoading(insertAllB, false);
   setBtnLoading(replaceAllB, false);
   insertAllB.disabled = false;

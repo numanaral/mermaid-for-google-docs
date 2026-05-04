@@ -3,6 +3,7 @@
 @use "../../shared/styles/components/buttons";
 @use "../../shared/styles/components/cards";
 @use "../../shared/styles/components/spinner";
+@use "../../shared/styles/components/toast";
 @use "../../shared/styles/layout/typography";
 
 body {
@@ -10,6 +11,10 @@ body {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+}
+
+.dialog-toast-host {
+  top: 12px;
 }
 
 .scroll-area {

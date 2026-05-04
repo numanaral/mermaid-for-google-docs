@@ -1,4 +1,7 @@
+import { bindLineNumbers } from "../../shared/scripts/code-editor";
+
 const inputEl = document.getElementById("input") as HTMLTextAreaElement;
+const refreshInputLineNumbers = bindLineNumbers(inputEl);
 const outputEl = document.getElementById("output")!;
 const diffBeforeEl = document.getElementById("diffBefore")!;
 const diffAfterEl = document.getElementById("diffAfter")!;
@@ -8,6 +11,16 @@ const normalView = document.getElementById("normalView")!;
 const diffView = document.getElementById("diffView")!;
 
 let currentView = "normal";
+let lastRaw = "";
+let lastFixed = "";
+let diffDirty = false;
+const DIFF_CELL_LIMIT = 250_000;
+
+const renderCurrentDiffIfNeeded = (): void => {
+  if (!diffDirty || currentView !== "diff") return;
+  renderDiff(lastRaw, lastFixed);
+  diffDirty = false;
+};
 
 document.querySelectorAll<HTMLButtonElement>(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -18,6 +31,7 @@ document.querySelectorAll<HTMLButtonElement>(".tab").forEach((tab) => {
     currentView = tab.dataset.view || "normal";
     normalView.classList.toggle("visible", currentView === "normal");
     diffView.classList.toggle("visible", currentView === "diff");
+    renderCurrentDiffIfNeeded();
   });
 });
 
@@ -30,6 +44,13 @@ const renderDiff = (oldText: string, newText: string): void => {
 
   const oldLines = oldText.split("\n");
   const newLines = newText.split("\n");
+  if (oldLines.length * newLines.length > DIFF_CELL_LIMIT) {
+    diffBeforeEl.innerHTML =
+      '<div class="diff-line">Diff too large to render safely. Use Fixed Output for the full result.</div>';
+    diffAfterEl.innerHTML =
+      '<div class="diff-line">Diff too large to render safely. Use Fixed Output for the full result.</div>';
+    return;
+  }
 
   const lcs = (a: string[], b: string[]): Array<{ oi: number; ni: number }> => {
     const m = a.length,
@@ -142,19 +163,41 @@ const renderDiff = (oldText: string, newText: string): void => {
 };
 
 const MERMAID_KEYWORDS = [
-  "flowchart", "graph", "sequencediagram", "classdiagram", "statediagram",
-  "erdiagram", "gantt", "pie", "gitgraph", "journey", "mindmap", "timeline",
-  "sankey", "xychart", "block-beta", "packet-beta", "quadrantchart",
-  "architecture-beta", "kanban", "requirementdiagram",
-  "c4context", "c4container", "c4component", "c4dynamic", "c4deployment",
+  "flowchart",
+  "graph",
+  "sequencediagram",
+  "classdiagram",
+  "statediagram",
+  "erdiagram",
+  "gantt",
+  "pie",
+  "gitgraph",
+  "journey",
+  "mindmap",
+  "timeline",
+  "sankey",
+  "xychart",
+  "block-beta",
+  "packet-beta",
+  "quadrantchart",
+  "architecture-beta",
+  "kanban",
+  "requirementdiagram",
+  "c4context",
+  "c4container",
+  "c4component",
+  "c4dynamic",
+  "c4deployment",
   "radar-beta",
 ];
 
 const getMermaidKeyword = (text: string): string | null => {
   const first = text.trim().split(/[\s-]/)[0].toLowerCase();
-  return MERMAID_KEYWORDS.find(
-    (kw) => first === kw || first === kw.replace("-", ""),
-  ) ?? null;
+  return (
+    MERMAID_KEYWORDS.find(
+      (kw) => first === kw || first === kw.replace("-", ""),
+    ) ?? null
+  );
 };
 
 /**
@@ -239,7 +282,6 @@ const fixMarkdown = (input: string): { text: string; count: number } => {
 };
 
 let debounceTimer: ReturnType<typeof setTimeout>;
-let lastFixed = "";
 
 inputEl.addEventListener("input", () => {
   clearTimeout(debounceTimer);
@@ -263,18 +305,22 @@ const processInput = (): void => {
     statusEl.textContent = "";
     statusEl.className = "status";
     copyBtn.disabled = true;
+    lastRaw = "";
     lastFixed = "";
+    diffDirty = false;
     return;
   }
 
   const { text, count } = fixMarkdown(raw);
+  lastRaw = raw;
   lastFixed = text;
 
   outputEl.textContent = text;
   outputEl.className = "output-content";
   copyBtn.disabled = false;
 
-  renderDiff(raw, text);
+  diffDirty = true;
+  renderCurrentDiffIfNeeded();
 
   if (count > 0) {
     statusEl.textContent =
@@ -317,6 +363,7 @@ pasteBtn.addEventListener("click", async () => {
     const text = await navigator.clipboard.readText();
     if (text && text.trim()) {
       inputEl.value = text;
+      refreshInputLineNumbers();
       processInput();
       return;
     }

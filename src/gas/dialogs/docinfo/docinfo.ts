@@ -1,18 +1,24 @@
-declare const infoData: { rows: [string, string][] };
+import { timeAsync } from "../../shared/scripts/perf";
+
+declare const infoData: { rows: [string, string][] } | null;
 
 (() => {
   const table = document.getElementById("info-table")!;
   const copyBtn = document.getElementById("copy-btn") as HTMLButtonElement;
+  let activeInfoData = infoData;
 
-  let html = "";
-  for (const [key, value] of infoData.rows) {
-    html += "<tr><th>" + key + "</th><td>" + value + "</td></tr>";
-  }
-  table.innerHTML = html;
+  const render = (data: NonNullable<typeof infoData>): void => {
+    let html = "";
+    for (const [key, value] of data.rows) {
+      html += "<tr><th>" + key + "</th><td>" + value + "</td></tr>";
+    }
+    table.innerHTML = html;
+  };
 
   const doCopy = (): void => {
+    if (!activeInfoData) return;
     let text = "";
-    for (const [key, value] of infoData.rows) {
+    for (const [key, value] of activeInfoData.rows) {
       text += key + ": " + value + "\n";
     }
 
@@ -41,4 +47,31 @@ declare const infoData: { rows: [string, string][] };
   };
 
   copyBtn.addEventListener("click", doCopy);
+
+  if (activeInfoData) {
+    render(activeInfoData);
+    return;
+  }
+
+  copyBtn.disabled = true;
+  table.innerHTML = "<tr><td>Loading document info...</td></tr>";
+  void timeAsync(
+    "docinfo:fetch-data",
+    () =>
+      new Promise<NonNullable<typeof infoData>>((resolve, reject) => {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)
+          .getDocumentInfoData();
+      }),
+  )
+    .then((data) => {
+      activeInfoData = data;
+      render(data);
+      copyBtn.disabled = false;
+    })
+    .catch((err: Error) => {
+      table.innerHTML =
+        "<tr><td>Failed to load document info: " + String(err) + "</td></tr>";
+    });
 })();

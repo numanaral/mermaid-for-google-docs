@@ -292,14 +292,39 @@ pre.source-block {
   gap: 6px;
 }
 
-.inline-panel textarea {
+.inline-panel .code-editor {
   width: 100%;
   min-height: 220px;
   flex: 1;
+  display: flex;
+  min-width: 0;
+  background: var(--surface);
+}
+
+.inline-panel .code-line-numbers {
+  width: 42px;
+  padding: 10px 8px;
+  border-right: 1px solid var(--outline-variant);
+  background: var(--surface-container);
+  color: var(--outline);
+  font-family: "Roboto Mono", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  text-align: right;
+  white-space: pre;
+  user-select: none;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.inline-panel textarea {
+  flex: 1;
+  min-width: 0;
   resize: none;
   font-family: "Roboto Mono", "Courier New", monospace;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.65;
+  tab-size: 2;
   padding: 10px 16px;
   border: none;
   outline: none;

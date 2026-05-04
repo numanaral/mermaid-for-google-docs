@@ -4,6 +4,7 @@
 @use "../../shared/styles/components/spinner";
 @use "../../shared/styles/components/paste-btn";
 @use "../../shared/styles/components/fullscreen";
+@use "../../shared/styles/components/toast";
 
 body {
   display: flex;
@@ -70,6 +71,33 @@ textarea {
   line-height: 1.5;
   color: var(--on-surface);
   background: var(--bg);
+}
+
+.code-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--bg);
+}
+
+.code-line-numbers {
+  flex: 0 0 40px;
+  padding: 10px 8px;
+  border-right: 1px solid var(--outline-variant);
+  overflow: hidden;
+  text-align: right;
+  white-space: pre;
+  user-select: none;
+  font-family: "Roboto Mono", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--outline);
+  background: var(--surface-container);
+}
+
+.code-editor textarea {
+  min-width: 0;
+  padding-left: 12px;
 }
 
 .preview-scroll {
@@ -309,4 +337,9 @@ textarea {
   border-top: 1px solid var(--outline-variant);
   background: var(--surface-container);
   flex-shrink: 0;
+
+  a {
+    color: inherit;
+    font-weight: 500;
+  }
 }

@@ -1,14 +1,11 @@
-import { loadScript } from "../../shared/scripts/load-script";
 import { svgToPngBase64 } from "../../shared/scripts/svg-to-png";
-import {
-  MERMAID_CDN_URL,
-  MERMAID_CONFIG,
-} from "../../shared/scripts/mermaid-init";
+import { loadMermaid } from "../../shared/scripts/mermaid-loader";
 import { wrapImgWithFullscreen } from "../../shared/scripts/fullscreen";
 import { setBtnLoading } from "../../shared/scripts/card-helpers";
+import { timeAsync } from "../../shared/scripts/perf";
+import { bindCodeEditor } from "../../shared/scripts/code-editor";
 
 declare const mermaid: {
-  initialize(config: unknown): void;
   render(id: string, src: string): Promise<{ svg: string }>;
 };
 declare const initialSource: string;
@@ -71,6 +68,11 @@ if (imageChildIndex >= 0) {
   replaceBtn.style.display = "";
   insertBtn.style.display = "none";
 }
+
+if (initialSource) {
+  sourceEl.value = initialSource;
+}
+const refreshSourceLineNumbers = bindCodeEditor(sourceEl);
 
 const TEMPLATES: Record<string, string> = {
   flowchart:
@@ -141,8 +143,12 @@ const doRender = async (): Promise<void> => {
   invalidateRenderedState("Rendering preview...");
 
   try {
-    const rendered = await mermaid.render(id, src);
-    const base64 = await svgToPngBase64(rendered.svg);
+    const rendered = await timeAsync("editor:mermaid-render", () =>
+      mermaid.render(id, src),
+    );
+    const base64 = await timeAsync("editor:svg-to-png", () =>
+      svgToPngBase64(rendered.svg),
+    );
     if (requestId !== renderCounter) return;
     if (base64) {
       currentBase64 = base64;
@@ -199,21 +205,6 @@ sourceEl.addEventListener("input", () => {
   updateTemplateHighlight();
 });
 
-sourceEl.addEventListener("keydown", (e) => {
-  if (e.key === "Tab") {
-    e.preventDefault();
-    const start = sourceEl.selectionStart;
-    const end = sourceEl.selectionEnd;
-    sourceEl.value =
-      sourceEl.value.substring(0, start) +
-      "    " +
-      sourceEl.value.substring(end);
-    sourceEl.selectionStart = sourceEl.selectionEnd = start + 4;
-    invalidateRenderedState("Rendering preview...");
-    scheduleRender();
-  }
-});
-
 insertBtn.addEventListener("click", () => {
   if (!currentBase64) return;
   insertBtn.disabled = true;
@@ -262,6 +253,7 @@ for (const btn of tplBtns) {
     const key = btn.getAttribute("data-tpl")!;
     if (TEMPLATES[key]) {
       sourceEl.value = TEMPLATES[key];
+      refreshSourceLineNumbers();
       invalidateRenderedState("Rendering preview...");
       updateTemplateHighlight();
       doRender();
@@ -271,13 +263,11 @@ for (const btn of tplBtns) {
 
 (async () => {
   try {
-    await loadScript(MERMAID_CDN_URL);
-    mermaid.initialize(MERMAID_CONFIG);
+    await loadMermaid();
     mermaidReady = true;
-    if (initialSource) {
-      sourceEl.value = initialSource;
+    if (sourceEl.value.trim()) {
       statusEl.textContent = "Source loaded — rendering...";
-      doRender();
+      void doRender();
     } else {
       statusEl.textContent = "Ready — start typing.";
     }

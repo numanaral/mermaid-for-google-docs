@@ -1,12 +1,8 @@
-import { loadScript } from "../../shared/scripts/load-script";
 import { svgToPngBase64 } from "../../shared/scripts/svg-to-png";
-import {
-  MERMAID_CDN_URL,
-  MERMAID_CONFIG,
-} from "../../shared/scripts/mermaid-init";
+import { loadMermaid } from "../../shared/scripts/mermaid-loader";
+import { timeAsync } from "../../shared/scripts/perf";
 
 declare const mermaid: {
-  initialize(config: unknown): void;
   render(id: string, src: string): Promise<{ svg: string }>;
 };
 declare const mermaidSource: string;
@@ -30,7 +26,7 @@ closeBtn.addEventListener("click", () => {
 
 (async () => {
   try {
-    await loadScript(MERMAID_CDN_URL);
+    await loadMermaid();
   } catch (e) {
     showError(
       "Failed to load mermaid.js: " +
@@ -39,12 +35,13 @@ closeBtn.addEventListener("click", () => {
     return;
   }
 
-  mermaid.initialize(MERMAID_CONFIG);
   messageEl.textContent = "Rendering diagram...";
 
   let rendered: { svg: string };
   try {
-    rendered = await mermaid.render("convert-svg", mermaidSource);
+    rendered = await timeAsync("convert:mermaid-render", () =>
+      mermaid.render("convert-svg", mermaidSource),
+    );
   } catch (e) {
     showError("Render error: " + (e instanceof Error ? e.message : String(e)));
     return;
@@ -54,7 +51,9 @@ closeBtn.addEventListener("click", () => {
 
   let base64: string | null;
   try {
-    base64 = await svgToPngBase64(rendered.svg);
+    base64 = await timeAsync("convert:svg-to-png", () =>
+      svgToPngBase64(rendered.svg),
+    );
   } catch {
     showError("PNG conversion failed.");
     return;
