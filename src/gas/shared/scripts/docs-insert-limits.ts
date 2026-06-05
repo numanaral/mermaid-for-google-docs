@@ -8,7 +8,12 @@ export const encodeMermaidSource = (source: string): string =>
 
 export const pngLongestSideFromBase64 = (base64: string): number | null => {
   try {
-    const raw = atob(base64);
+    // `atob` only exists in the dialog (browser) context, where this runs.
+    // Referencing it via globalThis keeps the shared file typechecking under
+    // the GAS server config too, where it simply degrades to null.
+    const decode = (globalThis as { atob?: (input: string) => string }).atob;
+    if (!decode) return null;
+    const raw = decode(base64);
     if (raw.length < 24) return null;
     const u8 = new Uint8Array(raw.length);
     for (let i = 0; i < raw.length; i++) u8[i] = raw.charCodeAt(i);
