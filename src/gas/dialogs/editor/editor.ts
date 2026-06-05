@@ -1,4 +1,8 @@
-import { svgToPngBase64 } from "../../shared/scripts/svg-to-png";
+import { applyLimitNotices } from "../../shared/scripts/limit-warning-bar";
+import {
+  consumePngExportHitDimensionCap,
+  svgToPngBase64,
+} from "../../shared/scripts/svg-to-png";
 import { loadMermaid } from "../../shared/scripts/mermaid-loader";
 import { wrapImgWithFullscreen } from "../../shared/scripts/fullscreen";
 import { setBtnLoading } from "../../shared/scripts/card-helpers";
@@ -18,6 +22,7 @@ type FocusTrapWindow = Window & {
 const sourceEl = document.getElementById("source") as HTMLTextAreaElement;
 const previewEl = document.getElementById("preview-area")!;
 const errorBar = document.getElementById("error-bar")!;
+const limitNoticesEl = document.getElementById("limit-notices")!;
 const statusEl = document.getElementById("status")!;
 const insertBtn = document.getElementById("insert-btn") as HTMLButtonElement;
 const replaceBtn = document.getElementById("replace-btn") as HTMLButtonElement;
@@ -132,6 +137,7 @@ const doRender = async (): Promise<void> => {
       '<div class="placeholder">Start typing to see a live preview.</div>';
     errorBar.className = "error-bar";
     errorBar.textContent = "";
+    applyLimitNotices(limitNoticesEl, "", null);
     invalidateRenderedState();
     statusEl.textContent = "Ready.";
     return;
@@ -149,6 +155,7 @@ const doRender = async (): Promise<void> => {
     const base64 = await timeAsync("editor:svg-to-png", () =>
       svgToPngBase64(rendered.svg),
     );
+    const pngHitCap = consumePngExportHitDimensionCap();
     if (requestId !== renderCounter) return;
     if (base64) {
       currentBase64 = base64;
@@ -159,6 +166,7 @@ const doRender = async (): Promise<void> => {
       setActionButtonsEnabled(true);
       errorBar.className = "error-bar";
       errorBar.textContent = "";
+      applyLimitNotices(limitNoticesEl, src, base64, pngHitCap);
       statusEl.textContent = "Preview up to date.";
     }
   } catch (e) {
@@ -275,6 +283,7 @@ for (const btn of tplBtns) {
   } catch (e) {
     statusEl.textContent =
       "Failed to load mermaid.js: " +
-      (e instanceof Error ? e.message : String(e));
+      (e instanceof Error ? e.message : String(e)) +
+      " (see browser console F12)";
   }
 })();

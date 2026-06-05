@@ -57,10 +57,12 @@
     </div>
   </div>
 
+  <div id="limit-notices" class="limit-notices" hidden></div>
+
   <div id="status"><span class="spinner-inline" style="border-color:rgba(0,0,0,0.15);border-top-color:var(--text-muted)"></span>Loading mermaid.js...</div>
 
   <script>
-    var initialSource = <?!= JSON.stringify(initialSource || "") ?>;
+    var initialSource = <?!= initialSourceJs ?>;
     var imageChildIndex = <?!= JSON.stringify(imageChildIndex != null ? imageChildIndex : -1) ?>;
   </script>
   <script>/* BUILD:INLINE_JS */</script>

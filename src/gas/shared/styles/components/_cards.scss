@@ -361,6 +361,14 @@ pre.source-block {
   &:empty {
     display: none;
   }
+
+  &.warn {
+    color: #5f4b08;
+    background: #fef7e0;
+    border-bottom-color: rgba(249, 171, 0, 0.35);
+
+    white-space: pre-wrap;
+  }
 }
 
 .editor-footer {

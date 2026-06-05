@@ -343,3 +343,20 @@ textarea {
     font-weight: 500;
   }
 }
+
+.limit-notices {
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 0 8px;
+
+  .limit-notice {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+  }
+
+  .limit-notice + .limit-notice {
+    margin-top: 6px;
+  }
+}

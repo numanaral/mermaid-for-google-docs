@@ -1,4 +1,8 @@
-import { svgToPngBase64 } from "../../shared/scripts/svg-to-png";
+import { applyLimitNotices } from "../../shared/scripts/limit-warning-bar";
+import {
+  consumePngExportHitDimensionCap,
+  svgToPngBase64,
+} from "../../shared/scripts/svg-to-png";
 import { escapeHtml } from "../../shared/scripts/escape-html";
 import { loadMermaid } from "../../shared/scripts/mermaid-loader";
 import {
@@ -260,6 +264,7 @@ const renderPreview = async (index: number): Promise<void> => {
   try {
     const rendered = await mermaid.render(id, src);
     const base64 = await svgToPngBase64(rendered.svg);
+    const hitCap = consumePngExportHitDimensionCap();
     if (latestRenderIds[index] !== requestId) return;
     if (base64) {
       renderedBase64s[index] = base64;
@@ -267,12 +272,14 @@ const renderPreview = async (index: number): Promise<void> => {
       const img = pvEl.querySelector("img");
       if (img) wrapImgWithFullscreen(img);
       setSaveEnabled(index, true);
+      applyLimitNotices(errEl, src, base64, hitCap);
     } else {
       invalidateCardRender(index);
       pvEl.innerHTML =
         '<span style="color:var(--outline)">Render failed</span>';
+      errEl.className = "";
+      errEl.textContent = "";
     }
-    errEl.textContent = "";
   } catch (e) {
     if (latestRenderIds[index] !== requestId) return;
     invalidateCardRender(index);

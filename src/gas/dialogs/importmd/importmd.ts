@@ -1,5 +1,10 @@
 import { loadScript } from "../../shared/scripts/load-script";
-import { svgToPngBase64 } from "../../shared/scripts/svg-to-png";
+import {
+  consumePngExportHitDimensionCap,
+  svgToPngBase64,
+} from "../../shared/scripts/svg-to-png";
+import { applyLimitNotices } from "../../shared/scripts/limit-warning-bar";
+import { summarizeInsertLimitWarnings } from "../../shared/scripts/docs-insert-limits";
 import { escapeHtml } from "../../shared/scripts/escape-html";
 import { loadMermaid } from "../../shared/scripts/mermaid-loader";
 import { wrapImgWithFullscreen } from "../../shared/scripts/fullscreen";
@@ -95,6 +100,7 @@ const sourceEl = document.getElementById("source") as HTMLTextAreaElement;
 const refreshSourceLineNumbers = bindLineNumbers(sourceEl);
 const previewEl = document.getElementById("preview-area")!;
 const statusEl = document.getElementById("status")!;
+const limitNoticesEl = document.getElementById("limit-notices")!;
 const insertBtn = document.getElementById("insert-btn") as HTMLButtonElement;
 const replaceBtn = document.getElementById("replace-btn") as HTMLButtonElement;
 const importNotice = document.getElementById("import-notice")!;
@@ -122,7 +128,7 @@ let mermaidReady = false;
 let mermaidLoadError = "";
 let renderTimer: ReturnType<typeof setTimeout> | null = null;
 let parsedTokens: Token[] = [];
-let mermaidImages: Map<number, string> = new Map();
+let mermaidImages: Map<number, { base64: string; hitCap: boolean }> = new Map();
 let renderCounter = 0;
 let activePreviewRun = 0;
 let slowImportToast: DialogToast | null = null;
@@ -345,12 +351,12 @@ const tokenToPayload = (token: Token, idx: number): ImportElement | null => {
       };
     case "code": {
       if (token.lang === "mermaid") {
-        const base64 = mermaidImages.get(idx);
-        if (base64) {
+        const img = mermaidImages.get(idx);
+        if (img?.base64) {
           return {
             type: "image",
             content: [],
-            base64,
+            base64: img.base64,
             mermaidSource: token.text,
           };
         }
@@ -536,9 +542,10 @@ const renderPreview = async (): Promise<void> => {
       try {
         const result = await mermaid.render(renderId, token.text ?? "");
         const base64 = await svgToPngBase64(result.svg);
+        const hitCap = consumePngExportHitDimensionCap();
         if (runId !== activePreviewRun) return;
         if (base64) {
-          mermaidImages.set(idx, base64);
+          mermaidImages.set(idx, { base64, hitCap });
           slot.innerHTML = `<img src="data:image/png;base64,${base64}" />`;
           const img = slot.querySelector("img");
           if (img) wrapImgWithFullscreen(img);
@@ -559,6 +566,33 @@ const renderPreview = async (): Promise<void> => {
   });
 
   if (runId !== activePreviewRun) return;
+
+  const limitBlocks = mermaidIndexes.map((idx) => {
+    const img = mermaidImages.get(idx);
+    return {
+      source: parsedTokens[idx].text ?? "",
+      base64: img?.base64 ?? null,
+      pngHitDimensionCap: img?.hitCap,
+    };
+  });
+  if (mermaidIndexes.length === 1) {
+    const b = limitBlocks[0];
+    applyLimitNotices(limitNoticesEl, b.source, b.base64, b.pngHitDimensionCap);
+  } else {
+    const summary = summarizeInsertLimitWarnings(limitBlocks);
+    limitNoticesEl.replaceChildren();
+    if (!summary.length) {
+      limitNoticesEl.hidden = true;
+    } else {
+      limitNoticesEl.hidden = false;
+      for (const text of summary) {
+        const el = document.createElement("div");
+        el.className = "notice notice-warn limit-notice";
+        el.textContent = text;
+        limitNoticesEl.appendChild(el);
+      }
+    }
+  }
 
   statusEl.textContent = `Rendered ${renderedCount}/${mermaidIndexes.length} diagram${mermaidIndexes.length > 1 ? "s" : ""}. Ready to import.`;
 
@@ -695,6 +729,13 @@ pasteBtn.addEventListener("click", async () => {
   sourceEl.focus();
   statusEl.textContent = "Use Ctrl+V (or Cmd+V) to paste into the text area.";
 });
+
+window.setTimeout(() => {
+  if (/^Loading libraries/i.test(statusEl.textContent)) {
+    statusEl.textContent =
+      "Still loading libraries… open the browser console (F12) for errors.";
+  }
+}, 20000);
 
 (async () => {
   const mermaidPromise = loadMermaid()
