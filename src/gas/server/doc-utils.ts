@@ -141,6 +141,18 @@ export const makeBlob = (
   );
 };
 
+export const makeUniqueDiagramBlob = (
+  base64Data: string,
+): GoogleAppsScript.Base.Blob => {
+  const stamp = Date.now();
+  const id = Utilities.getUuid().slice(0, 8);
+  return Utilities.newBlob(
+    Utilities.base64Decode(base64Data),
+    "image/png",
+    `mermaid-diagram-${stamp}-${id}.png`,
+  );
+};
+
 export const setMermaidAlt = (
   image: GoogleAppsScript.Document.InlineImage,
   mermaidSource: string,

@@ -3,6 +3,8 @@
 // way to stream or paginate this in Apps Script.
 import { MERMAID_ALT_TITLE } from "./constants";
 import { resolveMermaidSourceFromAlt } from "./doc-utils";
+import { timeServer } from "./server-perf";
+import { getActiveBody } from "./tab-utils";
 
 const textToMarkdown = (text: GoogleAppsScript.Document.Text): string => {
   const raw = text.getText();
@@ -305,3 +307,10 @@ export const exportDocAsMarkdown = (
       .trim() + "\n"
   );
 };
+
+/** Called from Export Markdown dialog via google.script.run */
+export function getExportMarkdown(): string {
+  const doc = DocumentApp.getActiveDocument();
+  const { body } = getActiveBody(doc);
+  return timeServer("exportmd:build-markdown", () => exportDocAsMarkdown(body));
+}

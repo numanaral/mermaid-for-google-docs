@@ -82,6 +82,11 @@ yarn gas:dev
 yarn gas:push
 ```
 
+**Dev tooling notes** (Playwright demos, optional server probes, demo script
+layout): [`scripts/README.md`](scripts/README.md) and
+[`scripts/demo/PLAYWRIGHT-GUIDE.md`](scripts/demo/PLAYWRIGHT-GUIDE.md).
+One-off spike scripts: `temp/one-off/README.md` (not committed).
+
 ## Project Structure
 
 ```
@@ -165,7 +170,7 @@ yarn gas:push
 
 The build pipeline (`scripts/build-gas.ts`) does the following:
 
-1. **Server**: Compiles `src/gas/server/Code.ts` via esbuild, then post-processes the output to produce GAS-compatible `Code.gs` (top-level function declarations, no module system)
+1. **Server**: Bundles `src/gas/server/Code.ts` (menu handlers + re-exports for dialog RPC) via esbuild into one `Code.gs` with top-level function declarations and no module system
 2. **Styles**: Compiles each dialog's SCSS to minified CSS
 3. **Scripts**: Bundles each dialog's TypeScript to minified IIFE
 4. **Assembly**: Injects compiled CSS and JS into each dialog's HTML template, producing self-contained HTML files that GAS can serve

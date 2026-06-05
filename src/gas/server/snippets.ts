@@ -5,6 +5,7 @@ import {
   tryExtractFencedMermaid,
   tryExtractMermaidFromBlock,
 } from "./doc-utils";
+import { timeServer } from "./server-perf";
 
 export const findMermaidSnippets = (): MermaidSnippet[] => {
   const body = DocumentApp.getActiveDocument().getBody();
@@ -89,3 +90,8 @@ export const findMermaidSnippets = (): MermaidSnippet[] => {
 
   return results;
 };
+
+/** Called from Preview dialog via google.script.run */
+export function getMermaidSnippetsForPreview(): MermaidSnippet[] {
+  return timeServer("scan:mermaid-snippets", () => findMermaidSnippets());
+}

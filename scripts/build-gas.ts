@@ -31,28 +31,32 @@ const clean = (): void => {
   fs.mkdirSync(TMP, { recursive: true });
 };
 
-const buildServer = async (): Promise<void> => {
-  console.log("==> Compiling server TypeScript...");
+const includePlaywrightProbes = (): boolean =>
+  process.env.GAS_INCLUDE_PLAYWRIGHT_PROBES === "1" ||
+  process.argv.includes("--playwright-probes");
 
-  const absCodePath = path.resolve(SRC, "server/Code.ts").replace(/\\/g, "/");
-  const entryContent = [
-    `import * as Code from "${absCodePath}";`,
-    `(globalThis as any).__gas = Code;`,
-  ].join("\n");
-
-  const entryFile = path.join(TMP, "_gas_entry.ts");
+const bundleGasEntry = async (
+  entryContent: string,
+  tmpJsName: string,
+  distGsName: string,
+  logLabel: string,
+): Promise<void> => {
+  const entryFile = path.join(
+    TMP,
+    `_gas_entry_${path.basename(tmpJsName, ".js")}.ts`,
+  );
   fs.writeFileSync(entryFile, entryContent);
 
   await esbuild.build({
     entryPoints: [entryFile],
     bundle: true,
-    outfile: path.join(TMP, "Code.js"),
+    outfile: path.join(TMP, tmpJsName),
     format: "iife",
     target: "es2020",
     platform: "neutral",
   });
 
-  let bundled = fs.readFileSync(path.join(TMP, "Code.js"), "utf8");
+  let bundled = fs.readFileSync(path.join(TMP, tmpJsName), "utf8");
 
   bundled = bundled
     .replace(/^"use strict";\n/, "")
@@ -87,8 +91,45 @@ const buildServer = async (): Promise<void> => {
 
   bundled = bundled.replace(/\n{3,}/g, "\n\n").trim();
 
-  fs.writeFileSync(path.join(DIST, "Code.gs"), bundled + "\n");
-  console.log("    Code.ts -> Code.gs");
+  fs.writeFileSync(path.join(DIST, distGsName), bundled + "\n");
+  console.log(`    ${logLabel}`);
+};
+
+const buildServer = async (): Promise<void> => {
+  const withProbes = includePlaywrightProbes();
+  console.log(
+    `==> Compiling server TypeScript${withProbes ? " (+ PlaywrightProbes.gs)" : ""}...`,
+  );
+
+  const absCodePath = path.resolve(SRC, "server/Code.ts").replace(/\\/g, "/");
+  const absProbesPath = path
+    .resolve(SRC, "server/playwright-probes.ts")
+    .replace(/\\/g, "/");
+
+  await bundleGasEntry(
+    [
+      `import * as GAS from "${absCodePath}";`,
+      `(globalThis as any).__gas = GAS;`,
+    ].join("\n"),
+    "Code.js",
+    "Code.gs",
+    "Code.ts -> Code.gs",
+  );
+
+  const probesGs = path.join(DIST, "PlaywrightProbes.gs");
+  if (withProbes) {
+    await bundleGasEntry(
+      [
+        `import * as Probes from "${absProbesPath}";`,
+        `(globalThis as any).__gas = Probes;`,
+      ].join("\n"),
+      "PlaywrightProbes.js",
+      "PlaywrightProbes.gs",
+      "playwright-probes.ts -> PlaywrightProbes.gs",
+    );
+  } else if (fs.existsSync(probesGs)) {
+    fs.unlinkSync(probesGs);
+  }
 };
 
 interface DialogAssets {
