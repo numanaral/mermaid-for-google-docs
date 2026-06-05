@@ -54,6 +54,82 @@ export const tryExtractFencedMermaid = (text: string): string | null => {
   return definition;
 };
 
+/**
+ * Read the text of a block-level element robustly. Native Google Docs code
+ * blocks ("Insert → Building blocks → Code block") are surfaced by the
+ * DocumentApp API as an element whose getType().toString() is "CODE_SNIPPET",
+ * and the exact way its text is exposed is undocumented, so we try several
+ * strategies: editAsText (works for most elements), concatenating child text
+ * (containers that hold one paragraph per line), then getText.
+ */
+const readBlockElementText = (
+  child: GoogleAppsScript.Document.Element,
+): string => {
+  const anyChild = child as unknown as {
+    editAsText?: () => { getText?: () => string };
+    getNumChildren?: () => number;
+    getChild?: (i: number) => GoogleAppsScript.Document.Element;
+    getText?: () => string;
+  };
+
+  try {
+    const t = anyChild.editAsText?.().getText?.();
+    if (t && t.trim()) return t;
+  } catch {
+    /* element does not support editAsText */
+  }
+
+  try {
+    if (typeof anyChild.getNumChildren === "function" && anyChild.getChild) {
+      const parts: string[] = [];
+      const count = anyChild.getNumChildren();
+      for (let k = 0; k < count; k++) {
+        const gc = anyChild.getChild(k) as unknown as {
+          editAsText?: () => { getText?: () => string };
+          getText?: () => string;
+        };
+        try {
+          parts.push(gc.editAsText?.().getText?.() ?? gc.getText?.() ?? "");
+        } catch {
+          /* skip unreadable grandchild */
+        }
+      }
+      const joined = parts.join("\n");
+      if (joined.trim()) return joined;
+    }
+  } catch {
+    /* not a readable container */
+  }
+
+  try {
+    const t = anyChild.getText?.();
+    if (t && t.trim()) return t;
+  } catch {
+    /* no getText */
+  }
+
+  return "";
+};
+
+/**
+ * Treat a block-level element (a native code block, or any non-paragraph block)
+ * as Mermaid source. Native code blocks carry raw text with no Markdown fences,
+ * so we strip optional fences and require the first line to be a Mermaid
+ * keyword to avoid converting unrelated blocks.
+ */
+export const tryExtractMermaidFromBlock = (
+  child: GoogleAppsScript.Document.Element,
+): string | null => {
+  const raw = readBlockElementText(child);
+  if (!raw.trim()) return null;
+
+  const definition = stripFences(raw);
+  if (!definition) return null;
+
+  if (!isMermaidFirstLine(definition.split("\n")[0])) return null;
+  return definition;
+};
+
 export const makeBlob = (
   base64Data: string,
   index: number,
@@ -312,28 +388,58 @@ export const extractMermaidAtCursor = (
   const cursor = doc.getCursor();
   if (!cursor) return null;
 
-  let el: GoogleAppsScript.Document.Element | null = cursor.getElement();
+  // Walk up from the cursor to the element that sits directly under the body,
+  // remembering a containing single-cell table (our styled code block) along
+  // the way.
+  let node: GoogleAppsScript.Document.Element | null = cursor.getElement();
   let table: GoogleAppsScript.Document.Table | null = null;
-  while (el) {
-    if (el.getType() === DocumentApp.ElementType.TABLE) {
-      table = el as GoogleAppsScript.Document.Table;
+  let bodyChild: GoogleAppsScript.Document.Element | null = null;
+
+  while (node) {
+    if (node.getType() === DocumentApp.ElementType.TABLE) {
+      table = node as GoogleAppsScript.Document.Table;
+    }
+    const parent = node.getParent();
+    if (parent && parent.getType() === DocumentApp.ElementType.BODY_SECTION) {
+      bodyChild = node;
       break;
     }
-    el = el.getParent();
+    node = parent;
   }
-  if (!table) return null;
+
+  if (!bodyChild) return null;
 
   try {
     const body = doc.getBody();
-    const idx = body.getChildIndex(table);
-    const cellText = table.getRow(0).getCell(0).editAsText().getText();
-    const definition = stripFences(cellText);
-    if (!definition) return null;
 
-    const firstLine = definition.split("\n")[0];
-    if (!isMermaidFirstLine(firstLine)) return null;
+    // Our styled code block: a single-cell table holding ```mermaid … ```.
+    if (table) {
+      const idx = body.getChildIndex(table);
+      const definition = stripFences(
+        table.getRow(0).getCell(0).editAsText().getText(),
+      );
+      if (!definition || !isMermaidFirstLine(definition.split("\n")[0]))
+        return null;
+      return { text: definition, startIdx: idx, endIdx: idx };
+    }
 
-    return { text: definition, startIdx: idx, endIdx: idx };
+    // Native Google Docs code block (or any other non-paragraph block element)
+    // that reads as Mermaid source. Plain paragraphs/list items are left to the
+    // selection and "Convert All" paths so a single line isn't half-converted.
+    if (
+      bodyChild.getType() !== DocumentApp.ElementType.PARAGRAPH &&
+      bodyChild.getType() !== DocumentApp.ElementType.LIST_ITEM
+    ) {
+      const definition = tryExtractMermaidFromBlock(bodyChild);
+      if (!definition) return null;
+      return {
+        text: definition,
+        startIdx: body.getChildIndex(bodyChild),
+        endIdx: body.getChildIndex(bodyChild),
+      };
+    }
+
+    return null;
   } catch {
     return null;
   }

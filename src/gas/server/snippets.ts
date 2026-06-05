@@ -1,5 +1,10 @@
 import type { MermaidSnippet } from "./types";
-import { getParaText, isMermaidFirstLine, tryExtractFencedMermaid } from "./doc-utils";
+import {
+  getParaText,
+  isMermaidFirstLine,
+  tryExtractFencedMermaid,
+  tryExtractMermaidFromBlock,
+} from "./doc-utils";
 
 export const findMermaidSnippets = (): MermaidSnippet[] => {
   const body = DocumentApp.getActiveDocument().getBody();
@@ -10,14 +15,15 @@ export const findMermaidSnippets = (): MermaidSnippet[] => {
     const child = body.getChild(i);
     const type = child.getType();
 
-    if (type.toString() === "CODE_SNIPPET") {
-      const text = getParaText(child);
-      if (!text.trim()) continue;
-
-      const firstLine = text.split("\n")[0];
-      if (isMermaidFirstLine(firstLine)) {
-        results.push({ definition: text.trim(), startIdx: i, endIdx: i });
-      }
+    // Native Google Docs code block (element type stringifies to "CODE_SNIPPET")
+    // or any other non-standard block element that reads as Mermaid source.
+    if (
+      type !== DocumentApp.ElementType.TABLE &&
+      type !== DocumentApp.ElementType.PARAGRAPH &&
+      type !== DocumentApp.ElementType.LIST_ITEM
+    ) {
+      const def = tryExtractMermaidFromBlock(child);
+      if (def) results.push({ definition: def, startIdx: i, endIdx: i });
       continue;
     }
 
