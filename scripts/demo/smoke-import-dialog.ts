@@ -44,7 +44,9 @@ const main = async (): Promise<void> => {
     if (!(await openMenuItem(page, "Import from Markdown"))) {
       detail = "menu open failed";
     } else {
-      const d = await enterDialog(page, (f) => f.locator("#source").isVisible());
+      const d = await enterDialog(page, (f) =>
+        f.locator("#source").isVisible(),
+      );
       if (!d) {
         detail = "dialog did not open";
       } else {
@@ -57,7 +59,8 @@ const main = async (): Promise<void> => {
             return true;
           }
           const hasMermaid = await iframe.evaluate(
-            () => typeof (window as { mermaid?: unknown }).mermaid !== "undefined",
+            () =>
+              typeof (window as { mermaid?: unknown }).mermaid !== "undefined",
           );
           if (hasMermaid && !/^Loading libraries/i.test(status)) {
             detail = `ready: ${status.slice(0, 80)}`;
@@ -73,9 +76,10 @@ const main = async (): Promise<void> => {
           return false;
         }, READY_MS);
         pass =
-          ok &&
+          ok === true &&
           !/Dialog script error|Dialog error/i.test(detail) &&
-          (detail.startsWith("ready:") || /Ready|Failed to load markdown/i.test(detail));
+          (detail.startsWith("ready:") ||
+            /Ready|Failed to load markdown/i.test(detail));
         if (ok && !pass) detail = detail || "timeout state unclear";
       }
     }
@@ -85,7 +89,11 @@ const main = async (): Promise<void> => {
     await browser.close();
   }
 
-  console.log(pass ? `\n✅ smoke-import PASS — ${detail}\n` : `\n❌ smoke-import FAIL — ${detail}\n`);
+  console.log(
+    pass
+      ? `\n✅ smoke-import PASS — ${detail}\n`
+      : `\n❌ smoke-import FAIL — ${detail}\n`,
+  );
   process.exit(pass ? 0 : 1);
 };
 

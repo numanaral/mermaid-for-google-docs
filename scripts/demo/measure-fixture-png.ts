@@ -120,22 +120,20 @@ async function main() {
           };
         };
 
-        const m = (
-          window as unknown as {
-            mermaid: {
-              render: (id: string, s: string) => Promise<{ svg: string }>;
-            };
-            MermaidSvgPng: {
-              svgToPngBase64: (svg: string) => Promise<string | null>;
-            };
-          }
-        ).mermaid;
-        const { svg } = await m.render(id, src);
+        const win = window as unknown as {
+          mermaid: {
+            render: (id: string, s: string) => Promise<{ svg: string }>;
+          };
+          MermaidSvgPng: {
+            svgToPngBase64: (svg: string) => Promise<string | null>;
+          };
+        };
+        const { svg } = await win.mermaid.render(id, src);
         const svgTag = svg.match(/<svg[^>]*>/)?.[0] || "";
         const viewBox = svgTag.match(/viewBox=["']([^"']+)["']/)?.[1] || "";
         const width = svgTag.match(/ width=["']([^"']+)["']/)?.[1] || "";
         const height = svgTag.match(/ height=["']([^"']+)["']/)?.[1] || "";
-        const b64 = await window.MermaidSvgPng.svgToPngBase64(svg);
+        const b64 = await win.MermaidSvgPng.svgToPngBase64(svg);
         if (!b64) {
           return {
             b64: null,
