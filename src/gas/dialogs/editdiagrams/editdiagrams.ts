@@ -258,7 +258,8 @@ const renderPreview = async (index: number): Promise<void> => {
   }
 
   setSaveEnabled(index, false, true);
-  errEl.textContent = "";
+  errEl.className = "error-bar";
+  errEl.replaceChildren();
   const requestId = ++renderCounter;
   latestRenderIds[index] = requestId;
   const id = "live-svg-" + index + "-" + requestId;
@@ -273,6 +274,7 @@ const renderPreview = async (index: number): Promise<void> => {
       const img = pvEl.querySelector("img");
       if (img) wrapImgWithFullscreen(img);
       setSaveEnabled(index, true);
+      errEl.className = "error-bar";
       applyLimitNotices(errEl, src, base64, hitCap);
     } else {
       invalidateCardRender(index);
