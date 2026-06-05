@@ -68,6 +68,27 @@ sitemapPriority: 0.5
       </div>
     </div>
 
+    <div class="limitation-card reveal" id="diagram-insert-limits">
+      <div class="limitation-icon info">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      </div>
+      <div class="limitation-body">
+        <h2>Very Large Diagrams: Image Size, Resolution, and Stored Source</h2>
+        <div class="limitation-tags">
+          <span class="tag tag-api">DocumentApp</span>
+          <span class="tag tag-impact">Insert Mermaid Diagram</span>
+          <span class="tag tag-impact">Import from Markdown</span>
+          <span class="tag tag-impact">Edit Diagrams</span>
+        </div>
+        <p>Google Docs rejects diagram PNGs whose <strong>longest side exceeds 5,000 pixels</strong> (<code>Invalid image data</code>). The add-on automatically downscales taller or wider exports while keeping aspect ratio, up to that limit.</p>
+        <p><strong>Resolution and zoom.</strong> Because the longest side is capped at 5,000px, a very tall, narrow diagram only gets a limited number of pixels across its width. If you enlarge that image and then zoom Google Docs in (say to 200%), text and thin lines can look soft — the bitmap simply doesn't hold more detail to show. To make the most of the cap, the add-on lays flowcharts out wider and shorter, renders at a higher internal resolution, and applies a light sharpening pass. Even so, a single inline raster image can't behave like a vector at high zoom; for very large diagrams, splitting them into a few smaller ones keeps every part crisp.</p>
+        <p>Separately, Docs limits image <strong>alt description</strong> text to about <strong>5,000 characters</strong> after encoding — and a long Mermaid definition doesn't fit. When that happens, the add-on stores the full source in this document's <strong>hidden properties</strong> (no extra permissions) and keeps a short <code>docstore:</code> pointer on the image instead. <strong>For these larger diagrams you won't find the source in the image's alt-text field — that's expected.</strong> <strong>Export as Markdown</strong> and <strong>Edit Diagram</strong> read from the hidden store, so <strong>import → export → re-import round trips stay lossless</strong>.</p>
+        <div class="limitation-detail">
+          <strong>Measured in-product:</strong> Image and alt limits were verified with Playwright probes against real <code>insertImage</code> and <code>setAltDescription</code> calls. The editor and Import preview warn when a diagram hits either cap. Source kept in document properties stays with this file only — it isn't copied if you paste the image into another document.
+        </div>
+      </div>
+    </div>
+
     <div class="limitation-card reveal">
       <div class="limitation-icon info">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>

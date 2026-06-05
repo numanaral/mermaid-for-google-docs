@@ -4,6 +4,18 @@ All notable changes to Mermaid Toolkit for Google Docs™ are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.2.0] — 2026-06-04
+
+**Large diagrams that survive export, sharper images, and steadier dialogs.**
+
+### Fixed
+
+- **Large diagram source no longer truncates on export or edit.** Google Docs caps image alt-text at about 5,000 encoded characters, so a long Mermaid definition no longer fits there. When that happens, the add-on stores the full source in this document's hidden properties and keeps a short pointer on the image. **Export as Markdown** and **Edit Diagram** recover the complete source, so import → export → re-import round trips stay lossless. This uses the existing `documents.currentonly` scope — no new permissions.
+- **Large diagrams insert within Google Docs' image size limit.** Google Docs limits the longest side of an inserted image to about 5,000 pixels, so a full-resolution Mermaid PNG can exceed what Docs accepts. The add-on renders and downscales to that cap so the diagram still inserts, with wider/shorter flowchart layout and a higher-resolution raster pass so detail holds up better under the cap; the full Mermaid definition stays on the image or in this document's hidden properties when alt-text is too short, so **Edit Diagram** and **Export as Markdown** are unchanged.
+- **Mermaid in native Google Docs Code blocks converts correctly.** Google Workspace enterprise / paid **Code block** building blocks (Insert → Building blocks → Code block) were ignored by **Convert All Code to Diagrams** and **Convert Selected Code to Diagram**, which only handled plain fenced text and the add-on's code-styled tables. Those converters now read Mermaid from `CODE_SNIPPET` blocks the same way.
+- **Formatted diagram labels no longer show raw HTML.** Bold, colored, and sized labels (`<b>`, `<span style="…">`) rendered as literal text in some diagrams; HTML labels are re-enabled so they display as intended.
+- **Dialogs no longer get stuck on "Loading libraries…".** A script that the Apps Script HTML iframe refused to parse could leave a dialog hanging. Dialog bundles are now downleveled for that iframe, injected source is escaped so it can't break out of its `<script>` tag, and a boot-time handler surfaces the underlying error instead of failing silently.
+
 ## [v1.1.1] — 2026-05-04
 
 **Faster dialogs, better editor ergonomics, better-fitting diagram images.**
@@ -86,6 +98,7 @@ v1.1.0 gives up that functionality. It removes the Advanced Service dependency e
 
 Superseded by v1.1.0's `documents.currentonly` scope. See the v1.1.0 entry above for the full rationale.
 
+[v1.2.0]: https://github.com/numanaral/mermaid-toolkit-for-google-docs/releases/tag/v1.2.0
 [v1.1.1]: https://github.com/numanaral/mermaid-toolkit-for-google-docs/releases/tag/v1.1.1
 [v1.1.0]: https://github.com/numanaral/mermaid-toolkit-for-google-docs/releases/tag/v1.1.0
 [v1.0.0]: https://github.com/numanaral/mermaid-toolkit-for-google-docs/releases/tag/v1.0.0
