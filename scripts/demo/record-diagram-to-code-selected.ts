@@ -1,15 +1,16 @@
 /**
- * Standalone recorder for "Convert Selected Diagram to Code".
- * Produces: site/assets/gifs/diagram-to-code-for-one.gif
+ * Standalone recorder for "Convert Selected Diagram to Code" (recorder step 04).
+ * Produces site/assets/gifs/diagram-to-code-for-one.gif without running the full
+ * demo:record pipeline — use when refreshing that one feature clip.
  *
  * Usage:
  *   tsx scripts/demo/record-diagram-to-code-selected.ts
  */
-import { chromium } from "playwright";
 import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import {
+  launchDemoBrowser,
   DOC_URL,
   STATE_FILE,
   VP_W,
@@ -29,11 +30,7 @@ const GIF_FPS = 12;
 const main = async (): Promise<void> => {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
-  const browser = await chromium.launch({
-    channel: "chrome",
-    headless: false,
-    args: ["--disable-blink-features=AutomationControlled"],
-  });
+  const browser = await launchDemoBrowser();
   const context = await browser.newContext({
     viewport: { width: VP_W, height: VP_H },
     storageState: fs.existsSync(STATE_FILE) ? STATE_FILE : undefined,

@@ -1,9 +1,15 @@
 import type { StepContext } from "../helpers";
-import { sleep } from "../helpers";
+import { isGoogleDocEditorReady, sleep } from "../helpers";
 
 export const step00Reset = async (ctx: StepContext): Promise<void> => {
   const { page, shot } = ctx;
   console.log("\n[00] Resetting document: Tab 5 → Tab 1");
+
+  if (!(await isGoogleDocEditorReady(page))) {
+    throw new Error(
+      "Google Doc editor not visible (login expired or wrong page). Run `yarn test:login`.",
+    );
+  }
   const tab5 = page.getByText("Tab 5", { exact: true }).first();
   const t5Box = await tab5.boundingBox().catch(() => null);
   if (t5Box) {
@@ -51,6 +57,9 @@ export const step00Reset = async (ctx: StepContext): Promise<void> => {
     await sleep(1800);
   } else {
     console.log("   ⚠ Tab 5 not found, skipping reset");
+    console.log(
+      "   (Playground doc needs tabs named Tab 1 and Tab 5, or reset manually.)",
+    );
   }
   await page.keyboard.press("Escape").catch(() => {});
   await sleep(250);

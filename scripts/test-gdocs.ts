@@ -1,21 +1,17 @@
 import "dotenv/config";
-import {
-  chromium,
-  type BrowserContext,
-  type Page,
-  type FrameLocator,
-} from "playwright";
+import { type BrowserContext, type Page, type FrameLocator } from "playwright";
 import path from "path";
 import fs from "fs";
+import {
+  ensurePlaywrightDocSession,
+  isGoogleDocEditorReady,
+  launchDemoBrowser,
+  DOC_URL,
+  STATE_FILE,
+  sleep,
+} from "./demo/helpers";
 
-if (!process.env.DOC_URL) {
-  throw new Error(
-    "DOC_URL is not set. Copy .env.example to .env and fill it in.",
-  );
-}
-const DOC_URL = process.env.DOC_URL;
 const SCREENSHOTS_DIR = path.resolve("temp/demo");
-const STATE_FILE = path.resolve(".playwright-state.json");
 
 interface MenuItem {
   label: string;
@@ -27,8 +23,6 @@ interface MenuItem {
     idx: string,
   ) => Promise<void>;
 }
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function shot(page: Page, name: string) {
   await page.screenshot({
@@ -132,30 +126,15 @@ async function exportInteractions(
   await shot(page, `${idx}-${slug}-loaded`);
 }
 
-async function waitForDocLoaded(context: BrowserContext, page: Page) {
+async function waitForDocLoaded(
+  context: BrowserContext,
+  page: Page,
+): Promise<boolean> {
   const title = await page.title();
   console.log(`  Page title: ${title}`);
-
-  if (
-    title.includes("Sign in") ||
-    title.includes("Google Account") ||
-    title.includes("accounts.google")
-  ) {
-    console.log("\n  *** Please log in to Google in the browser window. ***");
-    console.log("  *** The script will wait up to 5 minutes. ***\n");
-    await page.waitForURL("**/document/**", { timeout: 300000 });
-    await sleep(5000);
-    console.log("  Logged in!");
-  }
-
-  console.log("  Waiting for Google Docs™ to fully load...");
-  await page.waitForSelector("#docs-editor", { timeout: 30000 }).catch(() => {
-    console.log("  (docs-editor not found)");
-  });
-  await sleep(3000);
-
-  await context.storageState({ path: STATE_FILE });
-  console.log("  Session saved for reuse.\n");
+  const ok = await ensurePlaywrightDocSession(context, page);
+  console.log("");
+  return ok;
 }
 
 const MENU_ITEMS: MenuItem[] = [
@@ -191,11 +170,7 @@ const main = async () => {
       : "No saved session -- you may need to log in.",
   );
 
-  const browser = await chromium.launch({
-    channel: "chrome",
-    headless: false,
-    args: ["--disable-blink-features=AutomationControlled"],
-  });
+  const browser = await launchDemoBrowser();
 
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
@@ -208,11 +183,18 @@ const main = async () => {
   await page.goto(DOC_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
   await sleep(3000);
 
-  await waitForDocLoaded(context, page);
+  const docReady = await waitForDocLoaded(context, page);
 
   if (loginOnly) {
-    console.log("Login-only mode. Close the browser window when ready.");
-    await page.waitForEvent("close", { timeout: 600000 }).catch(() => {});
+    if (!docReady) {
+      console.error(
+        "\nDoc editor never appeared. Fix login or DOC_URL, then run again.\n",
+      );
+      await browser.close();
+      process.exit(1);
+    }
+    await context.storageState({ path: STATE_FILE });
+    console.log("Login OK — session saved. Closing browser.\n");
     await browser.close();
     return;
   }

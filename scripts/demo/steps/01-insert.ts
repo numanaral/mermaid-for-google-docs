@@ -17,7 +17,11 @@ import {
 export const step01Insert = async (ctx: StepContext): Promise<void> => {
   const { page, runTag, shot } = ctx;
   console.log("\n[01] Insert Mermaid Diagram");
-  await openMenuItem(page, "Insert Mermaid Diagram");
+  if (!(await openMenuItem(page, "Insert Mermaid Diagram"))) {
+    throw new Error(
+      "Could not open Extensions → Mermaid Toolkit (login, dry-run URL, or add-on not loaded).",
+    );
+  }
   const d = await enterDialog(page, (f) =>
     f
       .locator("#tpl-btn")
