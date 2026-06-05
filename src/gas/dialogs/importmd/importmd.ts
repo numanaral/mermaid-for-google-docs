@@ -3,6 +3,7 @@ import {
   consumePngExportHitDimensionCap,
   svgToPngBase64,
 } from "../../shared/scripts/svg-to-png";
+import { setDialogStatus } from "../../shared/scripts/dialog-status";
 import { applyLimitNotices } from "../../shared/scripts/limit-warning-bar";
 import { summarizeInsertLimitWarnings } from "../../shared/scripts/docs-insert-limits";
 import { escapeHtml } from "../../shared/scripts/escape-html";
@@ -507,7 +508,7 @@ const renderPreview = async (): Promise<void> => {
             '<div class="mermaid-error">Diagram preview unavailable; this block will import as code.</div>';
         }
       }
-      statusEl.textContent = mermaidLoadError;
+      setDialogStatus(statusEl, mermaidLoadError, "error");
       insertBtn.disabled = false;
       replaceBtn.disabled = false;
       return;
@@ -672,7 +673,7 @@ insertBtn.addEventListener("click", () => {
       insertBtn.className = "btn btn-filled-primary";
       insertBtn.disabled = false;
       replaceBtn.disabled = false;
-      statusEl.textContent = "Error: " + err;
+      setDialogStatus(statusEl, "Error: " + err, "error");
     });
 });
 
@@ -709,7 +710,7 @@ replaceBtn.addEventListener("click", () => {
       replaceBtn.className = "btn btn-filled-secondary";
       replaceBtn.disabled = false;
       insertBtn.disabled = false;
-      statusEl.textContent = "Error: " + err;
+      setDialogStatus(statusEl, "Error: " + err, "error");
     });
 });
 
@@ -747,7 +748,7 @@ window.setTimeout(() => {
       mermaidLoadError =
         "Mermaid diagrams unavailable: " +
         (e instanceof Error ? e.message : String(e));
-      statusEl.textContent = mermaidLoadError;
+      setDialogStatus(statusEl, mermaidLoadError, "error");
       if (sourceEl.value.trim() && markedReady) void renderPreview();
     });
 

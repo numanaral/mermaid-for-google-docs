@@ -12,12 +12,25 @@ export const applyLimitNotices = (
     pngBase64,
     pngHitDimensionCap,
   );
-  container.replaceChildren();
   if (!warnings.length) {
-    container.hidden = true;
+    container.replaceChildren();
+    if (container.classList.contains("error-bar")) {
+      container.className = "error-bar";
+      container.textContent = "";
+    } else {
+      container.hidden = true;
+    }
     return;
   }
+
+  if (container.classList.contains("error-bar")) {
+    container.className = "error-bar warn";
+    container.textContent = warnings.join("\n\n");
+    return;
+  }
+
   container.hidden = false;
+  container.replaceChildren();
   for (const text of warnings) {
     const el = document.createElement("div");
     el.className = "notice notice-warn limit-notice";

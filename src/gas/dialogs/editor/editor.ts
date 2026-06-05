@@ -1,3 +1,4 @@
+import { setDialogStatus } from "../../shared/scripts/dialog-status";
 import { applyLimitNotices } from "../../shared/scripts/limit-warning-bar";
 import {
   consumePngExportHitDimensionCap,
@@ -139,7 +140,7 @@ const doRender = async (): Promise<void> => {
     errorBar.textContent = "";
     applyLimitNotices(limitNoticesEl, "", null);
     invalidateRenderedState();
-    statusEl.textContent = "Ready.";
+    setDialogStatus(statusEl, "Ready.");
     return;
   }
   if (!mermaidReady) return;
@@ -167,7 +168,7 @@ const doRender = async (): Promise<void> => {
       errorBar.className = "error-bar";
       errorBar.textContent = "";
       applyLimitNotices(limitNoticesEl, src, base64, pngHitCap);
-      statusEl.textContent = "Preview up to date.";
+      setDialogStatus(statusEl, "Preview up to date.");
     }
   } catch (e) {
     if (requestId !== renderCounter) return;
@@ -175,7 +176,11 @@ const doRender = async (): Promise<void> => {
     invalidateRenderedState();
     errorBar.textContent = msg;
     errorBar.className = "error-bar visible";
-    statusEl.textContent = "Syntax error — showing last valid preview.";
+    setDialogStatus(
+      statusEl,
+      "Syntax error — showing last valid preview.",
+      "error",
+    );
   }
 
   const leftover = document.getElementById("d" + id);
@@ -227,7 +232,7 @@ insertBtn.addEventListener("click", () => {
       insertBtn.textContent = "Insert into Document";
       insertBtn.className = "btn btn-filled-primary";
       insertBtn.disabled = false;
-      statusEl.textContent = "Error: " + err;
+      setDialogStatus(statusEl, "Error: " + err, "error");
     })
     .insertImageAtCursor(currentBase64, sourceEl.value.trim());
 });
@@ -246,7 +251,7 @@ replaceBtn.addEventListener("click", () => {
       replaceBtn.textContent = "Replace Diagram";
       replaceBtn.className = "btn btn-filled-secondary";
       replaceBtn.disabled = false;
-      statusEl.textContent = "Error: " + err;
+      setDialogStatus(statusEl, "Error: " + err, "error");
     })
     .replaceImageInPlace(currentBase64, imageChildIndex, sourceEl.value.trim());
 });

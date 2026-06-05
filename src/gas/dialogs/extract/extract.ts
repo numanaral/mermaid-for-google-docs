@@ -1,3 +1,4 @@
+import { setDialogStatus } from "../../shared/scripts/dialog-status";
 import { svgToPngBase64 } from "../../shared/scripts/svg-to-png";
 import { escapeHtml } from "../../shared/scripts/escape-html";
 import { loadMermaid } from "../../shared/scripts/mermaid-loader";
@@ -178,7 +179,7 @@ const doInsert = (idx: number): void => {
       btn.disabled = false;
       btn.onclick = () => doInsert(idx);
       enableCard(idx);
-      statusEl.textContent = "Error: " + err;
+      setDialogStatus(statusEl, "Error: " + err, "error");
     })
     .insertCodeBlockAfterImage(
       activeImageInfos[idx].source,
@@ -211,7 +212,7 @@ const doReplace = (idx: number): void => {
       btn.disabled = false;
       btn.onclick = () => doReplace(idx);
       enableCard(idx);
-      statusEl.textContent = "Error: " + err;
+      setDialogStatus(statusEl, "Error: " + err, "error");
     })
     .replaceImageWithCodeBlock(
       activeImageInfos[idx].source,
@@ -346,7 +347,11 @@ const doBatchCodeBlocks = (action: "insert" | "replace"): void => {
       }
       updateStatusCount();
       if (errCount > 0) {
-        statusEl.textContent = okCount + " succeeded, " + errCount + " failed.";
+        setDialogStatus(
+          statusEl,
+          okCount + " succeeded, " + errCount + " failed.",
+          errCount > 0 ? "error" : "normal",
+        );
         activeBtn.textContent = isReplace ? "Replace All" : "Insert All";
         insertAllB.disabled = false;
         replaceAllB.disabled = false;
@@ -357,7 +362,7 @@ const doBatchCodeBlocks = (action: "insert" | "replace"): void => {
     .withFailureHandler((err: Error) => {
       window.clearTimeout(slowNoticeTimer);
       hideSlowBatchNotice();
-      statusEl.textContent = "Batch error: " + err;
+      setDialogStatus(statusEl, "Batch error: " + err, "error");
       for (const idx of queue) enableCard(idx);
       insertAllB.disabled = false;
       replaceAllB.disabled = false;
@@ -411,7 +416,11 @@ const fetchImageInfos = (): Promise<NonNullable<typeof imageInfos>> =>
   try {
     await loadMermaid();
   } catch {
-    statusEl.textContent = "Previews unavailable (mermaid.js failed to load).";
+    setDialogStatus(
+      statusEl,
+      "Previews unavailable (mermaid.js failed to load).",
+      "error",
+    );
     return;
   }
 

@@ -1,3 +1,4 @@
+@use "../../shared/styles/components/notices";
 @use "../../shared/styles/base/variables";
 @use "../../shared/styles/base/reset";
 @use "../../shared/styles/components/buttons";
@@ -176,23 +177,6 @@ textarea {
   }
 }
 
-.limit-notices {
-  flex-shrink: 0;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 0 0 8px;
-
-  .limit-notice {
-    width: 100%;
-    box-sizing: border-box;
-    margin: 0;
-  }
-
-  .limit-notice + .limit-notice {
-    margin-top: 6px;
-  }
-}
-
 #status {
   font-size: 12px;
   color: var(--outline);
@@ -200,4 +184,9 @@ textarea {
   border-top: 1px solid var(--outline-variant);
   background: var(--surface-container);
   flex-shrink: 0;
+
+  &.status-error {
+    color: var(--error);
+    font-weight: 500;
+  }
 }

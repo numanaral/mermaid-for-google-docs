@@ -1,3 +1,4 @@
+import { setDialogStatus } from "../../shared/scripts/dialog-status";
 import { applyLimitNotices } from "../../shared/scripts/limit-warning-bar";
 import {
   consumePngExportHitDimensionCap,
@@ -283,6 +284,7 @@ const renderPreview = async (index: number): Promise<void> => {
   } catch (e) {
     if (latestRenderIds[index] !== requestId) return;
     invalidateCardRender(index);
+    errEl.className = "error-bar";
     errEl.textContent = e instanceof Error ? e.message : String(e);
     const broken = document.getElementById(id);
     if (broken) broken.remove();
@@ -293,7 +295,7 @@ const doSave = (idx: number): void => {
   const btn = document.getElementById("save-" + idx) as HTMLButtonElement;
   const base64 = renderedBase64s[idx];
   if (!base64) {
-    statusEl.textContent = "Fix diagram errors before saving.";
+    setDialogStatus(statusEl, "Fix diagram errors before saving.", "error");
     btn.disabled = true;
     return;
   }
@@ -320,7 +322,7 @@ const doSave = (idx: number): void => {
       btn.disabled = false;
       btn.onclick = () => doSave(idx);
       enableCard(idx);
-      statusEl.textContent = "Error: " + err;
+      setDialogStatus(statusEl, "Error: " + err, "error");
     })
     .replaceImageInPlace(base64, activeImageInfos[idx].childIndex, newSource);
 };
@@ -389,7 +391,7 @@ const fetchImageInfos = (): Promise<NonNullable<typeof imageInfos>> =>
     await loadMermaid();
     mermaidReady = true;
   } catch {
-    statusEl.textContent = "Failed to load mermaid.js.";
+    setDialogStatus(statusEl, "Failed to load mermaid.js.", "error");
     return;
   }
 
