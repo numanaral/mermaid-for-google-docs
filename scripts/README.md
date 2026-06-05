@@ -2,13 +2,24 @@
 
 Build tooling and automation for the Mermaid Toolkit project.
 
+## Where dev notes live
+
+| Topic | Doc |
+|--------|-----|
+| **This file** | Build/push scripts, GAS probe builds, `package.json` demo commands |
+| **[`demo/PLAYWRIGHT-GUIDE.md`](demo/PLAYWRIGHT-GUIDE.md)** | Playwright + Google Docs™ (login, dialogs, recording, pitfalls) |
+| **[`temp/one-off/README.md`](../temp/one-off/README.md)** | Spike scripts not in `package.json` (gitignored `temp/`) |
+| **[`CONTRIBUTING.md`](../CONTRIBUTING.md)** | Clone, clasp, `.env`, `yarn gas:push` for contributors |
+
+User-facing product docs: `site/`, `CHANGELOG.md`, `README.md`.
+
 ## Build & Dev
 
 | Script | Description |
 |---|---|
-| `build-gas.ts` | GAS build pipeline — compiles server TypeScript, dialog SCSS/TS, and assembles self-contained HTML files for Apps Script |
+| `build-gas.ts` | GAS build — `Code.ts` → `dist/gas/Code.gs`; dialog HTML. Optional **`PlaywrightProbes.gs`** when `GAS_INCLUDE_PLAYWRIGHT_PROBES=1` or `--playwright-probes` (see below). |
 | `dev-gas.ts` | File watcher that rebuilds GAS output on source changes |
-| `push.ts` | Runs verify + build + `clasp push` in sequence. Automatically uses `clasp push -f` when the source has changed since the last push (so manifest edits don't hang on an interactive prompt). Pass `--force`/`-f` to force regardless of cached state |
+| `push.ts` | Runs verify + build + `clasp push`. Use **`--playwright-probes`** / **`--probes`** to include probe server file in the build before push. Pass `--skip-verify` if root `tsc` fails on uncommitted demo scripts. |
 | `preview-gas.ts` | Serves built GAS HTML dialogs locally for browser inspection |
 | `build.sh` | Shell wrapper for site + GAS builds |
 | `dev.sh` | Shell wrapper for concurrent site + GAS dev servers |
@@ -27,6 +38,26 @@ Build tooling and automation for the Mermaid Toolkit project.
 | Script | Description |
 |---|---|
 | `test-gdocs.ts` | Standalone Playwright smoke test — opens a Google Doc™ with the add-on and exercises menu items. Requires `DOC_URL` in `.env`. |
+
+### Playwright server probes (optional GAS file)
+
+Some demos call `google.script.run.probe*` to hit **DocumentApp** without driving the full UI (limits, docstore round-trip). That code lives in **`src/gas/server/playwright-probes.ts`** — not in `Code.ts`.
+
+| Command | Output |
+|---------|--------|
+| `yarn gas:build` | `dist/gas/Code.gs` only (production) |
+| `yarn gas:build:probes` | `Code.gs` + **`PlaywrightProbes.gs`** |
+| `yarn gas:push:probes` | Build with probes, then push both files |
+
+Server TypeScript is split across modules; **`Code.ts`** is the esbuild entry (menu + exported RPC names) and compiles to **`Code.gs`**. **`PlaywrightProbes.gs`** is a separate optional bundle entry.
+
+Probe/limit drivers (not in `package.json`; run with `tsx` after `yarn gas:push:probes`):
+
+- `tsx scripts/demo/probe-docs-image-limits.ts` (optional `--quick`)
+- `tsx scripts/demo/probe-docs-alt-limits.ts`
+- `tsx scripts/demo/run-docstore-export.ts`
+
+Details: [`demo/PLAYWRIGHT-GUIDE.md` — Server probes](demo/PLAYWRIGHT-GUIDE.md#server-probes-optional-gas-file).
 
 ## Demo Recording Pipeline (`demo/`)
 
@@ -57,4 +88,14 @@ yarn demo:site-video   # Cut site video
 
 All demo output goes to `temp/demo/` (gitignored). Site assets are written to `site/assets/demo/` (video), `site/assets/clips/` (WebM), and `site/assets/gifs/` (GIF for README/GitHub).
 
-See `demo/PLAYWRIGHT-GUIDE.md` for detailed Playwright setup and troubleshooting.
+### `package.json` demo scripts (site pipeline only)
+
+`demo:record`, `demo:split`, `demo:gif`, `demo:webm`, `demo:site-video`, `demo:demo-gif`, `demo:analyze`.
+
+Other helpers under `scripts/demo/` (probes, smoke, fixtures, `open-doc-browser.ts`, PNG harnesses) — **`tsx scripts/demo/<file>.ts`**, not yarn aliases. Auth: `yarn test:login`, `yarn test:gdocs`.
+
+Standalone clip recorders (steps 04/05): `record-diagram-to-code-selected.ts`, `record-convert-selected.ts` — same, via `tsx`.
+
+One-off spikes: **`temp/one-off/`** (see README there).
+
+See `demo/PLAYWRIGHT-GUIDE.md` for browser setup and troubleshooting.

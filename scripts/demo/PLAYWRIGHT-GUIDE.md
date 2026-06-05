@@ -10,6 +10,7 @@ real-world experience developing
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
+- [Server probes (optional GAS file)](#server-probes-optional-gas-file)
 - [Setup](#setup)
 - [Session Management (Persistent Login)](#session-management-persistent-login)
 - [Navigating Google Docs™ UI](#navigating-google-docs-ui)
@@ -49,6 +50,32 @@ Security Policy (CSP) rules that affect what works at runtime.
 | ES module `import`             | Use UMD/IIFE script loading                 |
 | `eval()` / inline scripts      | Use `<script>` tags bundled into the HTML   |
 | Fetching arbitrary URLs        | Proxy through `google.script.run`           |
+
+---
+
+## Server probes (optional GAS file)
+
+Node/Playwright can open Docs and call **`google.script.run`**, but only **Apps
+Script server** code can use `DocumentApp` (insert image, set alt text, export
+markdown). For limit experiments and docstore checks we avoid clicking through
+the full UI by deploying optional server functions in
+**`src/gas/server/playwright-probes.ts`**.
+
+That file is compiled to a **separate** `PlaywrightProbes.gs` — not merged into
+`Code.gs`:
+
+```bash
+yarn gas:push          # production: Code.gs only
+yarn gas:push:probes    # test playground: Code.gs + PlaywrightProbes.gs
+```
+
+Exported probe functions: `probeSetAltDescription`, `probeAppendImageBase64`,
+`probeDocstoreExportRoundTrip`. Demo drivers live under `scripts/demo/` (see
+[`../README.md`](../README.md)). Throwaway spikes live in `temp/one-off/`.
+
+**Do not** add probe-only re-exports to `Code.ts`. The editor’s
+`insertImageAtCursor` is implemented in `diagram-ops.ts` and re-exported from
+`Code.ts` for the editor; `playwright-probes.ts` imports it from the same module.
 
 ---
 
@@ -129,10 +156,15 @@ if (title.includes("Sign in") || title.includes("Google Account")) {
 
 ### Saving State After Login
 
-```js
-await context.storageState({ path: STATE_FILE });
-console.log("Session saved for reuse.");
-```
+Use `yarn test:login` — sign in if prompted, wait until `#docs-editor` is
+visible, write `.playwright-state.json`, then **close the browser automatically**.
+
+`ensurePlaywrightDocSession` in `helpers.ts` is what recorder / probes use: it
+only overwrites the state file when the editor is actually on screen (so a
+logged-out page does not clobber good cookies).
+
+`yarn demo:open-doc` does **not** clear cookies; on exit it refreshes the state
+file if the doc was still loaded.
 
 ### .gitignore
 
@@ -144,7 +176,18 @@ temp/
 
 > **Tip**: The state file contains session cookies. Never commit it.
 
-### Why `channel: "chrome"`?
+### Browser launch (`launchDemoBrowser` in `helpers.ts`)
+
+Scripts use **Playwright’s bundled Chromium** by default. On some Macs,
+`channel: "chrome"` (system Google Chrome) **never opens a window** and
+Playwright hangs — especially when Chrome.app is already running.
+
+Optional: `PLAYWRIGHT_CHANNEL=chrome` tries system Chrome first (8s timeout),
+then falls back to bundled Chromium.
+
+Saved `.playwright-state.json` works with either browser.
+
+### Why `channel: "chrome"`? (legacy note)
 
 Using the system Chrome (`channel: "chrome"`) instead of Playwright's bundled
 Chromium avoids Google's bot-detection that blocks login on automation browsers.

@@ -1,5 +1,12 @@
 import "dotenv/config";
-import type { Page, Frame, BrowserContext, Locator } from "playwright";
+import {
+  chromium,
+  type Browser,
+  type Page,
+  type Frame,
+  type BrowserContext,
+  type Locator,
+} from "playwright";
 import path from "path";
 import fs from "fs";
 
@@ -17,6 +24,106 @@ export const SCREENSHOTS_DIR = path.resolve("temp/demo");
 export const RUN_COUNTER_FILE = path.resolve(".playwright-run-seq.json");
 export const VP_W = 1440;
 export const VP_H = 900;
+
+const DEMO_BROWSER_ARGS = ["--disable-blink-features=AutomationControlled"];
+
+/**
+ * Launch a visible browser for Google Docs demos/tests.
+ *
+ * Default: Playwright's bundled Chromium (reliable on macOS).
+ * Optional: set PLAYWRIGHT_CHANNEL=chrome to try system Google Chrome first;
+ * if that hangs (common when Chrome.app is already running), we fall back.
+ */
+export const launchDemoBrowser = async (): Promise<Browser> => {
+  const headless = process.env.HEADLESS === "1";
+  const base = { headless, args: DEMO_BROWSER_ARGS };
+
+  if (process.env.PLAYWRIGHT_CHANNEL === "chrome") {
+    try {
+      return await Promise.race([
+        chromium.launch({ ...base, channel: "chrome" }),
+        new Promise<Browser>((_, reject) => {
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  "Google Chrome (channel) did not start within 8s — often hangs if Chrome.app is already open",
+                ),
+              ),
+            8000,
+          );
+        }),
+      ]);
+    } catch (e) {
+      console.warn(
+        `[playwright] ${e instanceof Error ? e.message : String(e)}. Using bundled Chromium.`,
+      );
+    }
+  }
+
+  return chromium.launch(base);
+};
+
+/** True when the page looks like an authenticated Google Doc editor. */
+export const isGoogleDocEditorReady = async (page: Page): Promise<boolean> =>
+  page
+    .locator("#docs-editor")
+    .waitFor({ state: "visible", timeout: 5000 })
+    .then(() => true)
+    .catch(() => false);
+
+/**
+ * Wait for login if needed, ensure the doc editor is visible, and persist
+ * session cookies only when the editor loaded (avoids overwriting a good
+ * .playwright-state.json with a logged-out page).
+ */
+export const ensurePlaywrightDocSession = async (
+  context: BrowserContext,
+  page: Page,
+): Promise<boolean> => {
+  const title = await page.title();
+  if (
+    title.includes("Sign in") ||
+    title.includes("Google Account") ||
+    title.includes("accounts.google")
+  ) {
+    console.log("\n   *** Log in to Google in the browser window. ***");
+    console.log("   *** Waiting up to 5 minutes… ***\n");
+    await page.waitForURL("**/document/**", { timeout: 300000 });
+    await sleep(5000);
+  }
+
+  console.log("   Waiting for Google Docs editor…");
+  const ready = await page
+    .waitForSelector("#docs-editor", { timeout: 30000 })
+    .then(() => true)
+    .catch(() => false);
+  await sleep(2000);
+
+  if (ready) {
+    await context.storageState({ path: STATE_FILE });
+    console.log("   Session saved to .playwright-state.json");
+  } else {
+    console.warn(
+      "   ⚠ #docs-editor not found — not updating .playwright-state.json",
+    );
+    console.warn(
+      "   Run `yarn test:login` (visible browser) and complete Google sign-in if prompted.",
+    );
+  }
+  return ready;
+};
+
+/** Persist cookies after manual browsing (e.g. demo:open-doc). */
+export const savePlaywrightSessionIfDocReady = async (
+  context: BrowserContext,
+  page: Page,
+): Promise<void> => {
+  if (await isGoogleDocEditorReady(page)) {
+    await context.storageState({ path: STATE_FILE });
+    console.log("Session refreshed in .playwright-state.json");
+  }
+};
 
 // ─── Run tagging ─────────────────────────────────────
 

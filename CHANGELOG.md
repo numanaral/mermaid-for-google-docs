@@ -8,13 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 **Large diagrams that survive export, sharper images, and steadier dialogs.**
 
+### Changed
+
+- **HTML labels in diagrams are enabled** in the Mermaid render configuration (flowcharts and related diagram types), so labels can use rich formatting where Mermaid supports it.
+- **Server-side add-on code is split into focused modules** (`Code.ts` menu and public entrypoints, diagram operations, doc scanning, dialog helpers) for easier maintenance; behavior for menus and dialogs is unchanged.
+
 ### Fixed
 
 - **Large diagram source no longer truncates on export or edit.** Google Docs caps image alt-text at about 5,000 encoded characters, so a long Mermaid definition no longer fits there. When that happens, the add-on stores the full source in this document's hidden properties and keeps a short pointer on the image. **Export as Markdown** and **Edit Diagram** recover the complete source, so import → export → re-import round trips stay lossless. This uses the existing `documents.currentonly` scope — no new permissions.
 - **Large diagrams insert within Google Docs' image size limit.** Google Docs limits the longest side of an inserted image to about 5,000 pixels, so a full-resolution Mermaid PNG can exceed what Docs accepts. The add-on renders and downscales to that cap so the diagram still inserts, with wider/shorter flowchart layout and a higher-resolution raster pass so detail holds up better under the cap; the full Mermaid definition stays on the image or in this document's hidden properties when alt-text is too short, so **Edit Diagram** and **Export as Markdown** are unchanged.
 - **Mermaid in native Google Docs Code blocks converts correctly.** Google Workspace enterprise / paid **Code block** building blocks (Insert → Building blocks → Code block) were ignored by **Convert All Code to Diagrams** and **Convert Selected Code to Diagram**, which only handled plain fenced text and the add-on's code-styled tables. Those converters now read Mermaid from `CODE_SNIPPET` blocks the same way.
-- **Formatted diagram labels no longer show raw HTML.** Bold, colored, and sized labels (`<b>`, `<span style="…">`) rendered as literal text in some diagrams; HTML labels are re-enabled so they display as intended.
 - **Dialogs no longer get stuck on "Loading libraries…".** A script that the Apps Script HTML iframe refused to parse could leave a dialog hanging. Dialog bundles are now downleveled for that iframe, injected source is escaped so it can't break out of its `<script>` tag, and a boot-time handler surfaces the underlying error instead of failing silently.
+- **Insert-limit notices read as warnings, not errors.** When a diagram is downscaled for Google Docs' 5,000px image cap (or similar limits), dialogs show amber warning styling instead of the red error bar; footer status text still turns red for real failures.
 
 ## [v1.1.1] — 2026-05-04
 

@@ -7,10 +7,10 @@
  *   tsx scripts/demo/recorder.ts 0-2      # steps 0 through 2
  *   tsx scripts/demo/recorder.ts 8-13     # steps 8 through 13
  */
-import { chromium } from "playwright";
 import fs from "fs";
 import path from "path";
 import {
+  launchDemoBrowser,
   DOC_URL,
   STATE_FILE,
   SCREENSHOTS_DIR,
@@ -22,6 +22,7 @@ import {
   injectCursor,
   setCursor,
   setLastPos,
+  ensurePlaywrightDocSession,
   type StepContext,
 } from "./helpers";
 
@@ -83,11 +84,7 @@ const main = async (): Promise<void> => {
     endMs: number;
   }> = [];
 
-  const browser = await chromium.launch({
-    channel: "chrome",
-    headless: false,
-    args: ["--disable-blink-features=AutomationControlled"],
-  });
+  const browser = await launchDemoBrowser();
   const context = await browser.newContext({
     viewport: { width: VP_W, height: VP_H },
     storageState: fs.existsSync(STATE_FILE) ? STATE_FILE : undefined,
@@ -106,11 +103,12 @@ const main = async (): Promise<void> => {
 
   console.log("Loading doc...");
   await page.goto(DOC_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page
-    .waitForSelector("#docs-editor", { timeout: 30000 })
-    .catch(() => {});
-  await sleep(2000);
-  await context.storageState({ path: STATE_FILE });
+  const sessionOk = await ensurePlaywrightDocSession(context, page);
+  if (!sessionOk) {
+    throw new Error(
+      "Google Doc did not load (login or DOC_URL). Run `yarn test:login` first.",
+    );
+  }
   await injectCursor(page);
   setLastPos(VP_W / 2, 350);
   await setCursor(page, VP_W / 2, 350);
