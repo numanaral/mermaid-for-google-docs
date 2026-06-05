@@ -4,7 +4,6 @@ import path from "path";
 import fs from "fs";
 import {
   ensurePlaywrightDocSession,
-  isGoogleDocEditorReady,
   launchDemoBrowser,
   DOC_URL,
   STATE_FILE,

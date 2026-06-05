@@ -23,6 +23,7 @@
     "verify:fix": "tsx scripts/verify-fix.ts",
     "test:login": "tsx scripts/test-gdocs.ts --login",
     "test:gdocs": "tsx scripts/test-gdocs.ts",
+    "demo:open-doc": "tsx scripts/demo/open-doc-browser.ts",
     "demo:record": "tsx scripts/demo/recorder.ts",
     "demo:analyze": "tsx scripts/demo/analyze-clips.ts",
     "demo:split": "tsx scripts/demo/split-clips.ts",

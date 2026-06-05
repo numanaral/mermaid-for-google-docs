@@ -17,7 +17,6 @@ import {
   VP_W,
   VP_H,
   savePlaywrightSessionIfDocReady,
-  sleep,
 } from "./helpers";
 
 const main = async (): Promise<void> => {

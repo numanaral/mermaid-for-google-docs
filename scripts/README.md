@@ -90,9 +90,9 @@ All demo output goes to `temp/demo/` (gitignored). Site assets are written to `s
 
 ### `package.json` demo scripts (site pipeline only)
 
-`demo:record`, `demo:split`, `demo:gif`, `demo:webm`, `demo:site-video`, `demo:demo-gif`, `demo:analyze`.
+`demo:open-doc`, `demo:record`, `demo:split`, `demo:gif`, `demo:webm`, `demo:site-video`, `demo:demo-gif`, `demo:analyze`.
 
-Other helpers under `scripts/demo/` (probes, smoke, fixtures, `open-doc-browser.ts`, PNG harnesses) — **`tsx scripts/demo/<file>.ts`**, not yarn aliases. Auth: `yarn test:login`, `yarn test:gdocs`.
+Other helpers under `scripts/demo/` (probes, smoke, fixtures, PNG harnesses) — **`tsx scripts/demo/<file>.ts`**. Auth: `yarn test:login`, `yarn test:gdocs`.
 
 Standalone clip recorders (steps 04/05): `record-diagram-to-code-selected.ts`, `record-convert-selected.ts` — same, via `tsx`.
 
