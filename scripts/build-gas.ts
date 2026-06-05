@@ -143,7 +143,8 @@ const buildDialogs = async (): Promise<DialogAssets[]> => {
                 bundle: true,
                 write: false,
                 format: "iife",
-                target: "es2020",
+                // HtmlService iframe parser is picky; downlevel ?. / ?? for safety.
+                target: "es2017",
                 minify: true,
               });
               js = result.outputFiles![0].text;
@@ -175,6 +176,26 @@ const getPackageVersion = (): string => {
   return pkg.version || "0.0.0";
 };
 
+/** Catch broken inline JS before push (SyntaxError in userCodeAppPanel). */
+const validateDialogHtmlScripts = (html: string, gasName: string): void => {
+  const chunks = html.split(/<script\b[^>]*>/i);
+  for (let i = 1; i < chunks.length; i++) {
+    const body = chunks[i].split(/<\/script>/i)[0];
+    if (body.includes("<?")) continue;
+    if (body.toLowerCase().includes("</script")) {
+      throw new Error(
+        `${gasName}: inline script #${i} contains literal </script (HTML tokenizer breakout)`,
+      );
+    }
+    try {
+      new Function(body);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`${gasName}: inline script #${i} does not parse: ${msg}`);
+    }
+  }
+};
+
 const assembleDialogs = (assets: DialogAssets[]): void => {
   console.log("==> Assembling HTML dialogs...");
 
@@ -183,6 +204,9 @@ const assembleDialogs = (assets: DialogAssets[]): void => {
     .trim();
   const focusTrapHtml = fs
     .readFileSync(path.join(SRC, "shared/templates/focus-trap.html"), "utf8")
+    .trim();
+  const dialogBootHtml = fs
+    .readFileSync(path.join(SRC, "shared/templates/dialog-boot.html"), "utf8")
     .trim();
   const version = getPackageVersion();
   // Matches the slug the site's changelog data file produces for each release
@@ -208,13 +232,20 @@ const assembleDialogs = (assets: DialogAssets[]): void => {
     let html = fs.readFileSync(htmlFile, "utf8");
 
     html = html.replace("/* BUILD:INLINE_CSS */", () => css);
-    const safeJs = js.replace(/<\//g, "<\\/").replace(/<!--/g, "<\\!--");
+    // Only break up HTML token "</script>" — global "</" breaks some minified regex.
+    const safeJs = js
+      .replace(/<\/script/gi, "<\\/script")
+      .replace(/<!--/g, "<\\!--");
     html = html.replace("/* BUILD:INLINE_JS */", () => safeJs);
     html = html.replace("<!-- BUILD:FOOTER -->", () => footerHtml);
-    html = html.replace("<!-- BUILD:FOCUS_TRAP -->", () => focusTrapHtml);
+    html = html.replace(
+      "<!-- BUILD:FOCUS_TRAP -->",
+      () => dialogBootHtml + "\n" + focusTrapHtml,
+    );
     html = html.replace(/<!-- BUILD:VERSION-ANCHOR -->/g, versionAnchor);
     html = html.replace(/<!-- BUILD:VERSION -->/g, version);
 
+    validateDialogHtmlScripts(html, gasName);
     fs.writeFileSync(path.join(DIST, `${gasName}.html`), html);
     console.log(`    ${name}.html -> ${gasName}.html`);
   }

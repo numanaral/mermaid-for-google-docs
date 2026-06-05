@@ -1,0 +1,18 @@
+<script>
+(function () {
+  function showStatus(msg) {
+    var el = document.getElementById("status");
+    if (el) el.textContent = msg;
+    console.error("[mermaid-addon]", msg);
+  }
+  window.addEventListener("error", function (e) {
+    var loc = e.filename ? " @ " + e.filename + ":" + e.lineno : "";
+    showStatus("Dialog script error: " + (e.message || "unknown") + loc);
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    var r = e.reason;
+    var msg = r && r.message ? r.message : String(r);
+    showStatus("Dialog error: " + msg);
+  });
+})();
+</script>

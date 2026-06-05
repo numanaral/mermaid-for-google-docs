@@ -53,7 +53,11 @@ const openEditorForImage = (source: string, imageChildIndex: number): void => {
   );
 
   const template = HtmlService.createTemplateFromFile("Editor");
-  template.initialSource = source;
+  // Prevent </script> in source from terminating the preceding <script> in HTML.
+  template.initialSourceJs = JSON.stringify(source || "").replace(
+    /</g,
+    "\\u003c",
+  );
   template.imageChildIndex = imageChildIndex;
 
   const html = template.evaluate().setWidth(1000).setHeight(700);

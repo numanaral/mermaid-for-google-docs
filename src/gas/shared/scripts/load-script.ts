@@ -35,7 +35,11 @@ export const loadScript = (
       };
       s.onerror = () => {
         scriptPromises.delete(url);
-        reject(new Error("Failed to load " + url));
+        reject(
+          new Error(
+            "Failed to load script (network, CSP, or ad blocker): " + url,
+          ),
+        );
       };
       document.head.appendChild(s);
     });
