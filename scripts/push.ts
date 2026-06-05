@@ -43,19 +43,34 @@ const hashDirectory = (dir: string): string => {
   return hash.digest("hex").slice(0, 16);
 };
 
+const bin = (name: string): string =>
+  path.join(process.cwd(), "node_modules", ".bin", name);
+
 const run = (cmd: string): void => {
   execSync(cmd, { stdio: "inherit" });
 };
 
-const parseFlags = (): { force: boolean } => {
+const parseFlags = (): {
+  force: boolean;
+  skipVerify: boolean;
+  playwrightProbes: boolean;
+} => {
   const argv = process.argv.slice(2);
   const force = argv.includes("--force") || argv.includes("-f");
-  return { force };
+  const skipVerify =
+    argv.includes("--skip-verify") || argv.includes("--no-verify");
+  const playwrightProbes =
+    argv.includes("--playwright-probes") || argv.includes("--probes");
+  return { force, skipVerify, playwrightProbes };
 };
 
 const main = (): void => {
   const t0 = Date.now();
-  const { force: forceFlag } = parseFlags();
+  const { force: forceFlag, skipVerify, playwrightProbes } = parseFlags();
+  if (playwrightProbes) {
+    process.env.GAS_INCLUDE_PLAYWRIGHT_PROBES = "1";
+    console.log("[push] Build: including Playwright probe server hooks");
+  }
   const sourceHash = hashDirectory(GAS_SRC);
   const cache = readCache();
   const isCurrent = cache?.sourceHash === sourceHash;
@@ -63,7 +78,9 @@ const main = (): void => {
 
   console.log(`[push] Source hash: ${sourceHash}`);
 
-  if (isCurrent && cache.verified) {
+  if (skipVerify) {
+    console.log("[push] Verify: skipped (--skip-verify)");
+  } else if (isCurrent && cache?.verified) {
     console.log("[push] Verify: skipped (no changes since last verify)");
   } else {
     console.log("[push] Verify: running...\n");
@@ -101,7 +118,7 @@ const main = (): void => {
   console.log(
     `[push] Pushing to Apps Script...${shouldForce ? " (force)" : ""}\n`,
   );
-  run(`clasp push${shouldForce ? " -f" : ""}`);
+  run(`${bin("clasp")} push${shouldForce ? " -f" : ""}`);
 
   writeCache({
     sourceHash,
