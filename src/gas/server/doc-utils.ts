@@ -1,4 +1,16 @@
 import { MERMAID_ALT_TITLE, MERMAID_KEYWORDS } from "./constants";
+import {
+  DOCS_MAX_ENCODED_ALT_DESCRIPTION_CHARS,
+  encodeMermaidSource,
+} from "../shared/scripts/docs-insert-limits";
+import {
+  MERMAID_DOCSTORE_ALT_PREFIX,
+  docstoreIdFromAlt,
+  loadEncodedMermaidFromDocument,
+  storeEncodedMermaidInDocument,
+} from "./mermaid-doc-store";
+
+export { encodeMermaidSource };
 
 export const isMermaidFirstLine = (firstLine: string): boolean => {
   const fl = firstLine.trim().toLowerCase();
@@ -53,8 +65,58 @@ export const makeBlob = (
   );
 };
 
-export const encodeMermaidSource = (source: string): string => {
-  return source.replace(/\\/g, "\\\\").replace(/\n/g, "\\n");
+export const setMermaidAlt = (
+  image: GoogleAppsScript.Document.InlineImage,
+  mermaidSource: string,
+): void => {
+  image.setAltTitle(MERMAID_ALT_TITLE);
+  if (!mermaidSource) return;
+
+  const encoded = encodeMermaidSource(mermaidSource);
+  if (encoded.length > DOCS_MAX_ENCODED_ALT_DESCRIPTION_CHARS) {
+    const id = storeEncodedMermaidInDocument(encoded);
+    if (id) {
+      try {
+        image.setAltDescription(MERMAID_DOCSTORE_ALT_PREFIX + id);
+      } catch {
+        try {
+          image.setAltDescription("");
+        } catch {
+          /* ignore */
+        }
+      }
+    } else {
+      try {
+        image.setAltDescription("");
+      } catch {
+        /* ignore */
+      }
+    }
+    return;
+  }
+
+  try {
+    image.setAltDescription(encoded);
+  } catch {
+    try {
+      image.setAltDescription("");
+    } catch {
+      /* ignore */
+    }
+  }
+};
+
+export const resolveMermaidSourceFromAlt = (
+  raw: string | null | undefined,
+): string | null => {
+  if (!raw) return null;
+  const id = docstoreIdFromAlt(raw);
+  if (id) {
+    const encoded = loadEncodedMermaidFromDocument(id);
+    if (!encoded) return null;
+    return decodeMermaidSource(encoded);
+  }
+  return decodeMermaidSource(raw);
 };
 
 export const decodeMermaidSource = (encoded: string): string => {
@@ -76,14 +138,6 @@ export const decodeMermaidSource = (encoded: string): string => {
     result += encoded[i];
   }
   return result;
-};
-
-export const setMermaidAlt = (
-  image: GoogleAppsScript.Document.InlineImage,
-  mermaidSource: string,
-): void => {
-  image.setAltTitle(MERMAID_ALT_TITLE);
-  image.setAltDescription(encodeMermaidSource(mermaidSource));
 };
 
 const getContentBoxSize = (
@@ -116,13 +170,19 @@ export const fitImageToPage = (
   const currentHeight = image.getHeight();
   if (!currentWidth || !currentHeight) return;
 
-  const targetWidth = maxWidth;
-  const comfortableMaxHeight = maxHeight * 0.72;
-  const scale = Math.min(
-    targetWidth / currentWidth,
-    comfortableMaxHeight / currentHeight,
-  );
-  if (Math.abs(scale - 1) < 0.02) return;
+  const comfortableMaxHeight = maxHeight * 0.88;
+  let scale = 1;
+
+  // Tall diagrams: shrink height to fit the page first so width keeps full PNG resolution.
+  if (currentHeight > comfortableMaxHeight) {
+    scale = comfortableMaxHeight / currentHeight;
+  }
+  const widthAfter = currentWidth * scale;
+  if (widthAfter > maxWidth) {
+    scale *= maxWidth / widthAfter;
+  }
+
+  if (scale >= 0.98) return;
 
   image.setWidth(Math.floor(currentWidth * scale));
   image.setHeight(Math.floor(currentHeight * scale));

@@ -2,7 +2,7 @@
 // document body must be traversed server-side via DocumentApp. There is no
 // way to stream or paginate this in Apps Script.
 import { MERMAID_ALT_TITLE } from "./constants";
-import { decodeMermaidSource } from "./doc-utils";
+import { resolveMermaidSourceFromAlt } from "./doc-utils";
 
 const textToMarkdown = (text: GoogleAppsScript.Document.Text): string => {
   const raw = text.getText();
@@ -129,8 +129,11 @@ export const exportDocAsMarkdown = (
           if (img.getAltTitle() === MERMAID_ALT_TITLE) {
             const raw = img.getAltDescription();
             if (raw) {
-              hasMermaidImage = true;
-              mermaidSource = decodeMermaidSource(raw);
+              const resolved = resolveMermaidSourceFromAlt(raw);
+              if (resolved) {
+                hasMermaidImage = true;
+                mermaidSource = resolved;
+              }
             }
           }
         }

@@ -1,9 +1,4 @@
-import {
-  appendCodeBlock,
-  encodeMermaidSource,
-  fitImageToPage,
-} from "./doc-utils";
-import { MERMAID_ALT_TITLE } from "./constants";
+import { appendCodeBlock, fitImageToPage, setMermaidAlt } from "./doc-utils";
 import { getActiveBody } from "./tab-utils";
 
 interface Seg {
@@ -233,10 +228,7 @@ const appendElements = (
           );
           const image = body.appendImage(blob);
           fitImageToPage(image, body);
-          if (el.mermaidSource) {
-            image.setAltTitle(MERMAID_ALT_TITLE);
-            image.setAltDescription(encodeMermaidSource(el.mermaidSource));
-          }
+          if (el.mermaidSource) setMermaidAlt(image, el.mermaidSource);
         }
         break;
       }
