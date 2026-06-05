@@ -1,4 +1,117 @@
+import { DOCS_MAX_PNG_LONGEST_SIDE_PX } from "./docs-insert-limits";
+
 const SVG_NS = "http://www.w3.org/2000/svg";
+
+/**
+ * PNG export for DocumentApp.insertImage. See docs-insert-limits.ts.
+ */
+const MAX_PNG_LONGEST_SIDE_PX = DOCS_MAX_PNG_LONGEST_SIDE_PX;
+/** Baseline supersampling for crisp text/lines. */
+const RETINA_SCALE = 2;
+/** When under the Docs pixel cap, scale up toward max longest side (file size is OK). */
+const MAX_UPSCALE_FACTOR = 6;
+const MIN_LOGICAL_LONGEST_FOR_UPSCALE = 160;
+/** Downsample from 2× internal raster for sharper edges when hitting the 5000px cap. */
+const RENDER_SUPERSAMPLE = 2;
+/** Avoid very large temporary canvases in browser dialogs. */
+const MAX_SUPERSAMPLED_PIXELS = 40_000_000;
+const MAX_SHARPEN_PIXELS = 12_000_000;
+const SHARPEN_AMOUNT = 0.12;
+
+let lastPngExportHitDimensionCap = false;
+
+/** True if the last svgToPngBase64 call downscaled for the Docs 5000px limit. */
+export const consumePngExportHitDimensionCap = (): boolean => {
+  const hit = lastPngExportHitDimensionCap;
+  lastPngExportHitDimensionCap = false;
+  return hit;
+};
+
+/**
+ * Pick raster scale: at least 2x, up to 6x, capped so longest side ≤ 5000px.
+ * Large diagrams use the full dimension budget (not file size) for zoom/resize in Docs.
+ */
+const computeCanvasScale = (w: number, h: number): number => {
+  const longest = Math.max(w, h, 1);
+  const scaleToCap = MAX_PNG_LONGEST_SIDE_PX / longest;
+
+  let scale = RETINA_SCALE;
+  if (longest >= MIN_LOGICAL_LONGEST_FOR_UPSCALE && scaleToCap > RETINA_SCALE) {
+    scale = Math.min(scaleToCap, MAX_UPSCALE_FACTOR);
+  }
+
+  const rasterLongest = longest * scale;
+  if (rasterLongest > MAX_PNG_LONGEST_SIDE_PX) {
+    lastPngExportHitDimensionCap = true;
+    scale = scaleToCap;
+  }
+  return scale;
+};
+
+/** Rounded canvas size; uniform shrink if rounding pushes longest side over the cap. */
+const canvasDimensions = (
+  w: number,
+  h: number,
+  scale: number,
+): { width: number; height: number; drawScale: number } => {
+  let width = Math.max(1, Math.round(w * scale));
+  let height = Math.max(1, Math.round(h * scale));
+  const longest = Math.max(width, height);
+  if (longest > MAX_PNG_LONGEST_SIDE_PX) {
+    lastPngExportHitDimensionCap = true;
+    const f = MAX_PNG_LONGEST_SIDE_PX / longest;
+    width = Math.max(1, Math.floor(width * f));
+    height = Math.max(1, Math.floor(height * f));
+  }
+  const drawScale = width / w;
+  return { width, height, drawScale };
+};
+
+const renderSupersample = (width: number, height: number): number => {
+  const pixels = width * height;
+  if (pixels <= 0) return 1;
+  return Math.max(
+    1,
+    Math.min(RENDER_SUPERSAMPLE, Math.sqrt(MAX_SUPERSAMPLED_PIXELS / pixels)),
+  );
+};
+
+const applyMildSharpen = (
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+): void => {
+  if (width * height > MAX_SHARPEN_PIXELS || width < 3 || height < 3) return;
+
+  try {
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const src = new Uint8ClampedArray(imageData.data);
+    const dst = imageData.data;
+    const stride = width * 4;
+    const amount = SHARPEN_AMOUNT;
+    const centerWeight = 1 + amount * 4;
+
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const idx = y * stride + x * 4;
+        for (let channel = 0; channel < 3; channel++) {
+          const value =
+            src[idx + channel] * centerWeight -
+            amount *
+              (src[idx - 4 + channel] +
+                src[idx + 4 + channel] +
+                src[idx - stride + channel] +
+                src[idx + stride + channel]);
+          dst[idx + channel] = Math.max(0, Math.min(255, Math.round(value)));
+        }
+      }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+  } catch {
+    /* Best-effort sharpening; keep the rendered image if pixel access fails. */
+  }
+};
 
 interface TextSpan {
   text: string;
@@ -260,13 +373,33 @@ const renderToCanvas = (
     img.height = h;
 
     img.onload = () => {
-      const scale = 2;
+      const scale = computeCanvasScale(w, h);
+      const { width, height, drawScale } = canvasDimensions(w, h, scale);
+      const ss = renderSupersample(width, height);
+      const hiWidth = Math.max(1, Math.round(width * ss));
+      const hiHeight = Math.max(1, Math.round(height * ss));
+      const hi = document.createElement("canvas");
+      hi.width = hiWidth;
+      hi.height = hiHeight;
+      const hiCtx = hi.getContext("2d")!;
+      hiCtx.imageSmoothingEnabled = true;
+      hiCtx.imageSmoothingQuality = "high";
+      hiCtx.scale(
+        drawScale * (hiWidth / width),
+        drawScale * (hiHeight / height),
+      );
+      hiCtx.drawImage(img, 0, 0, w, h);
+
       const c = document.createElement("canvas");
-      c.width = w * scale;
-      c.height = h * scale;
+      c.width = width;
+      c.height = height;
       const ctx = c.getContext("2d")!;
-      ctx.scale(scale, scale);
-      ctx.drawImage(img, 0, 0, w, h);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(hi, 0, 0, width, height);
+      if (Math.max(width, height) >= MAX_PNG_LONGEST_SIDE_PX) {
+        applyMildSharpen(ctx, width, height);
+      }
 
       try {
         const dataUrl = c.toDataURL("image/png");
@@ -369,6 +502,7 @@ const needsDomLayout = (svgString: string): boolean => {
 export const svgToPngBase64 = async (
   svgString: string,
 ): Promise<string | null> => {
+  lastPngExportHitDimensionCap = false;
   if (needsDomLayout(svgString)) {
     const domResult = await prepareSvgViaDom(svgString);
     if (domResult) {
