@@ -17,4 +17,4 @@ esbuild "$SCRIPTS/index.ts" "$SCRIPTS/gallery.ts" \
   --bundle --outdir="$OUT/scripts" --minify --target=es2020 \
   --splitting --format=esm
 
-eleventy
+NODE_ENV=production eleventy

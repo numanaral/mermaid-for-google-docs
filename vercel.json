@@ -1,6 +1,6 @@
 {
   "installCommand": "yarn install --frozen-lockfile",
-  "buildCommand": "yarn site:build",
+  "buildCommand": "NODE_ENV=production yarn site:build",
   "outputDirectory": "_site",
   "trailingSlash": true
 }

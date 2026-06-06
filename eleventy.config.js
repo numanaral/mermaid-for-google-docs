@@ -32,6 +32,17 @@ module.exports = function (eleventyConfig) {
     return date instanceof Date ? date.toISOString().split("T")[0] : "";
   });
 
+  eleventyConfig.addFilter("marketplaceUtm", (url, medium) => {
+    if (!url || !medium) return url;
+    const sep = url.includes("?") ? "&" : "?";
+    const q = new URLSearchParams({
+      utm_source: "website",
+      utm_medium: String(medium),
+      utm_campaign: "mermaid_toolkit",
+    });
+    return `${url}${sep}${q}`;
+  });
+
   eleventyConfig.addCollection("sitemapValidated", (collectionApi) => {
     const all = collectionApi.getAll();
     const missing = all
